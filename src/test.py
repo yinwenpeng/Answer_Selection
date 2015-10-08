@@ -1,6 +1,6 @@
 
 def word2key(word):
-    #map each word into a key, like "haha" into "aahh"
+    #map each word into a key, like "haha" into "aahh".
     return ''.join(sorted(map(lambda x:x, word)))
 
 def anagram(dicFile):
