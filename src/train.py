@@ -21,8 +21,8 @@ from loadData import load_ibm_corpus, load_word2vec_to_init
 from word2embeddings.nn.util import zero_value, random_value_normal
 
 
-def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[5, 3, 3], batch_size=10, useAllSamples=0, kmax=35, ktop=8, filter_size=[3,5, 5],
-                    L2_weight=0.00005, dropout_p=0.8, useEmb=1, task=2, dataMode=2, maxSentLength=60, train_lines=4070, emb_size=50, hidden_size=100,
+def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[50], batch_size=10, window_width=3,
+                    L2_weight=0.00005, maxSentLength=1100, emb_size=50, hidden_size=100,
                     margin=0.5):
 #def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[6, 12], batch_size=70, useAllSamples=0, kmax=30, ktop=5, filter_size=[10,7],
 #                    L2_weight=0.000005, dropout_p=0.5, useEmb=0, task=5, corpus=1):
@@ -59,22 +59,14 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[5, 3, 3], batch_si
     # allocate symbolic variables for the data
     index = T.lscalar()  # index to a [mini]batch
     x_index = T.imatrix('x_index')   # now, x is the index matrix, must be integer
-    left=T.ivector('left')
-    right=T.ivector('right')
+    #left=T.ivector('left')
+    #right=T.ivector('right')
     
-    x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
+    #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
     ishape = (emb_size, maxSentLength)  # this is the size of MNIST images
-    filter_size1=(emb_size,filter_size[0])
-    #filter_size2=(embedding_size/2,filter_size[1])
-    poolsize1=(1, ishape[1]-filter_size1[1]+1) #?????????????????????????????
-    #poolsize1=(1, ishape[1]+filter_size1[1]-1)
-
-    '''
-    left_after_conv=T.maximum(0,left-filter_size1[1]+1)
-    right_after_conv=T.maximum(0, right-filter_size1[1]+1)
-    '''
-    left_after_conv=left
-    right_after_conv=right
+    filter_size=(emb_size,window_width)
+    #poolsize1=(1, ishape[1]-filter_size[1]+1) #?????????????????????????????
+    length_after_wideConv=ishape[1]+filter_size[1]-1
     
     ######################
     # BUILD ACTUAL MODEL #
@@ -83,23 +75,15 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[5, 3, 3], batch_si
 
     # Reshape matrix of rasterized images of shape (batch_size,28*28)
     # to a 4D tensor, compatible with our LeNetConvPoolLayer
-    layer0_input = x.reshape(((batch_size*2), 1, ishape[0], ishape[1]))
-    '''
-    left_after_conv=T.maximum(0, layer0.leftPad-filter_size2[1]+1)
-    right_after_conv=T.maximum(0, layer0.rightPad-filter_size2[1]+1)
-    '''
-    #left_after_conv=layer0.leftPad
-    #right_after_conv=layer0.rightPad
-    dynamic_lengths=T.repeat([ktop],(batch_size*2))  # dynamic k-max pooling
+    #layer0_input = x.reshape(((batch_size*4), 1, ishape[0], ishape[1]))
+    layer0_input = embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).dimshuffle(0, 'x', 1, 2)
+
     #layer0_output = debug_print(layer0.output, 'layer0.output')
     layer0 = Conv(rng, input=layer0_input,
             image_shape=((batch_size*4), 1, ishape[0], ishape[1]),
-            filter_shape=(nkerns[0], 1, filter_size1[0], filter_size1[1]), poolsize=poolsize1)    
+            filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]))    
     
-    layer1=Average_Pooling(rng, input=layer0.output, poolsize1[1], nkerns[0] ) 
-    # the HiddenLayer being fully-connected, it operates on 2D matrices of
-    # shape (batch_size,num_pixels) (i.e matrix of rasterized images).
-    # This will generate a matrix of shape (20,32*4*4) = (20,512)
+    layer1=Average_Pooling(rng, input=layer0.output, length_last_dim=length_after_wideConv, kern=nkerns[0] ) 
     
     input_hidden_layer=layer1.output.reshape((batch_size*2, 1, nkerns[0]*2, 1))
     layer2=HiddenLayer(rng, input=input_hidden_layer, n_in=nkerns[0]*2, n_out=hidden_size, activation=T.tanh)
@@ -127,22 +111,6 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[5, 3, 3], batch_si
       
     # create a list of gradients for all model parameters
     grads = T.grad(cost, params)
-    # train_model is a function that updates the model parameters by
-    # SGD Since this model has many parameters, it would be tedious to
-    # manually create an update rule for each model parameter. We thus
-    # create the updates list by automatically looping over all
-    # (params[i],grads[i]) pairs.
-
-    '''
-    updates = []
-    for param_i, grad_i in zip(params, grads):
-        if param_i == embeddings:
-            updates.append((param_i, T.set_subtensor((param_i - learning_rate * grad_i)[0], theano.shared(numpy.zeros(embedding_size)))))   #AdaGrad
-        else:
-            updates.append((param_i, param_i - learning_rate * grad_i))   #AdaGrad
- 
-    
-    '''
     updates = []
     for param_i, grad_i, acc_i in zip(params, grads, accumulator):
         grad_i=debug_print(grad_i,'grad_i')
@@ -152,7 +120,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[5, 3, 3], batch_si
   
     train_model = theano.function([index], [cost], updates=updates,
           givens={
-            x_index: indices_train_theano[index: index + (batch_size*2)]})
+            x_index: indices_train_theano[index: index + (batch_size*4)]})
 
     ###############
     # TRAIN MODEL #
@@ -258,7 +226,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[5, 3, 3], batch_si
 class Conv(object):
     """Pool Layer of a convolutional network """
 
-    def __init__(self, rng, input, filter_shape, image_shape, poolsize=(2, 2)):
+    def __init__(self, rng, input, filter_shape, image_shape):
         """
         Allocate a LeNetConvPoolLayer with shared variable internal parameters.
 
@@ -289,8 +257,7 @@ class Conv(object):
         # each unit in the lower layer receives a gradient from:
         # "num output feature maps * filter height * filter width" /
         #   pooling size
-        fan_out = (filter_shape[0] * numpy.prod(filter_shape[2:]) /
-                   numpy.prod(poolsize))
+        fan_out = filter_shape[0] * numpy.prod(filter_shape[2:])
         # initialize weights with random weights
         W_bound = numpy.sqrt(6. / (fan_in + fan_out))
         self.W = theano.shared(numpy.asarray(
@@ -311,7 +278,12 @@ class Conv(object):
         # thus be broadcasted across mini-batches and feature map
         # width & height
         conv_with_bias = T.tanh(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
-        self.output=conv_with_bias.reshape((image_shape[0], 1, filter_shape[0], poolsize[1])) #(batch, 1, kernerl, ishape[1]-filter_size1[1]+1)
+        narrow_conv_out=conv_with_bias.reshape((image_shape[0], 1, filter_shape[0], poolsize[1])) #(batch, 1, kernerl, ishape[1]-filter_size1[1]+1)
+        
+        #pad filter_size-1 zero embeddings at both sides
+        left_padding = T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
+        right_padding = T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
+        self.output = T.concatenate([left_padding, narrow_conv_out, right_padding], axis=3) 
         
 
         # store parameters of this layer
@@ -334,7 +306,7 @@ class Average_Pooling(object):
         # initialize weights with random weights
         W_bound = numpy.sqrt(6. / (fan_in + fan_out))
         self.W = theano.shared(numpy.asarray(
-            rng.uniform(low=-W_bound, high=W_bound, size=(input.shape[2], input.shape[3])),
+            rng.uniform(low=-W_bound, high=W_bound, size=(input.shape[2], input.shape[2])),
             dtype=theano.config.floatX),
                                borrow=True) #a weight matrix kern*kern
         
@@ -414,7 +386,3 @@ def compute_acc(label_list, scores_list):
 
 if __name__ == '__main__':
     evaluate_lenet5()
-
-
-def experiment(state, channel):
-    evaluate_lenet5(state.learning_rate, dataset=state.dataset)
