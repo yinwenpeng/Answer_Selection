@@ -22,7 +22,7 @@ from word2embeddings.nn.util import zero_value, random_value_normal
 
 
 def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[50], batch_size=10, window_width=3,
-                    L2_weight=0.00005, maxSentLength=1100, emb_size=50, hidden_size=100,
+                    maxSentLength=1050, emb_size=50, hidden_size=200,
                     margin=0.5):
 #def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[6, 12], batch_size=70, useAllSamples=0, kmax=30, ktop=5, filter_size=[10,7],
 #                    L2_weight=0.000005, dropout_p=0.5, useEmb=0, task=5, corpus=1):
@@ -51,7 +51,8 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[50], batch_size=10
 
 
     rand_values=random_value_normal((vocab_size+1, emb_size), theano.config.floatX, numpy.random.RandomState(1234))
-    rand_values[0]=numpy.array(numpy.zeros(emb_size))
+    rand_values[0]=numpy.array(1e-50+numpy.zeros(emb_size))
+    #rand_values[0]=numpy.array([1e-50]*emb_size)
     rand_values=load_word2vec_to_init(rand_values)
     embeddings=theano.shared(value=rand_values)      
 
@@ -81,16 +82,19 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[50], batch_size=10
     #layer0_output = debug_print(layer0.output, 'layer0.output')
     layer0 = Conv(rng, input=layer0_input,
             image_shape=((batch_size*4), 1, ishape[0], ishape[1]),
-            filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]))    
+            filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]))
     
-    layer1=Average_Pooling(rng, input=layer0.output, length_last_dim=length_after_wideConv, kern=nkerns[0] ) 
+    layer0_out=debug_print(layer0.output, 'layer0_out')
     
-    input_hidden_layer=layer1.output.reshape((batch_size*2, 1, nkerns[0]*2, 1))
-    layer2=HiddenLayer(rng, input=input_hidden_layer, n_in=nkerns[0]*2, n_out=hidden_size, activation=T.tanh)
+    layer1=Average_Pooling(rng, input=layer0_out, length_last_dim=length_after_wideConv, kern=nkerns[0] ) 
+    
+    layer1_out=debug_print(layer1.output.reshape((batch_size*2, nkerns[0]*2)), 'layer1_out')
+    
+    layer2=HiddenLayer(rng, input=layer1_out, n_in=nkerns[0]*2, n_out=hidden_size, activation=T.tanh)
     layer3=HiddenLayer(rng, input=layer2.output, n_in=hidden_size, n_out=1, activation=T.tanh)
     
-    posi_score=layer3.output[0:layer3.shape[0]:2,:,:,:]
-    nega_score=layer3.output[1:layer3.shape[0]:2,:,:,:]
+    posi_score=layer3.output[0:layer3.output.shape[0]:2,:]
+    nega_score=layer3.output[1:layer3.output.shape[0]:2,:]
     cost=T.maximum(0, margin-T.sum(posi_score-nega_score))
     
 
@@ -115,7 +119,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[50], batch_size=10
     for param_i, grad_i, acc_i in zip(params, grads, accumulator):
         grad_i=debug_print(grad_i,'grad_i')
         acc = acc_i + T.sqr(grad_i)
-        updates.append((param_i, param_i - learning_rate * grad_i / T.sqrt(acc)))   #AdaGrad
+        updates.append((param_i, param_i - learning_rate * grad_i / (T.sqrt(acc)+1e-20)))   #AdaGrad
         updates.append((acc_i, acc))    
   
     train_model = theano.function([index], [cost], updates=updates,
@@ -156,25 +160,20 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[50], batch_size=10
             iter = (epoch - 1) * n_train_batches + minibatch_index +1
 
             minibatch_index=minibatch_index+1
-            #if epoch %2 ==0:
-            #    batch_start=batch_start+remain_train
-            time.sleep(0.5)
             cost_ij= train_model(batch_start)
-            
             if iter % n_train_batches == 0:
                 print 'training @ iter = '+str(iter)+' cost: '+str(cost_ij)
-            #if iter ==1:
-            #    exit(0)
-            
             if iter % validation_frequency == 0:
                 dev_scores=[]
                 for i in dev_batch_start:
-                    dev_scores+=dev_model(i)
+                    dev_scores+=list(dev_model(i))
+
                 acc_dev=compute_acc(devY, dev_scores)
                 print(('\t\t\t\tepoch %i, minibatch %i/%i, dev acc of best '
                            'model %f %%') %
                           (epoch, minibatch_index, n_train_batches,
                            acc_dev * 100.))
+
                 '''
                 #print 'validating & testing...'
                 # compute zero-one loss on validation set
@@ -278,11 +277,11 @@ class Conv(object):
         # thus be broadcasted across mini-batches and feature map
         # width & height
         conv_with_bias = T.tanh(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
-        narrow_conv_out=conv_with_bias.reshape((image_shape[0], 1, filter_shape[0], poolsize[1])) #(batch, 1, kernerl, ishape[1]-filter_size1[1]+1)
+        narrow_conv_out=conv_with_bias.reshape((image_shape[0], 1, filter_shape[0], image_shape[3]-filter_shape[3]+1)) #(batch, 1, kernerl, ishape[1]-filter_size1[1]+1)
         
         #pad filter_size-1 zero embeddings at both sides
-        left_padding = T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
-        right_padding = T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
+        left_padding = 1e-50+T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
+        right_padding = 1e-50+T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
         self.output = T.concatenate([left_padding, narrow_conv_out, right_padding], axis=3) 
         
 
@@ -298,57 +297,53 @@ class Average_Pooling(object):
 
         # there are "num input feature maps * filter height * filter width"
         # inputs to each hidden unit
-        fan_in = input.shape[2] #kern numbers
+        fan_in = kern #kern numbers
         # each unit in the lower layer receives a gradient from:
         # "num output feature maps * filter height * filter width" /
         #   pooling size
-        fan_out = input.shape[2]
+        fan_out = kern
         # initialize weights with random weights
         W_bound = numpy.sqrt(6. / (fan_in + fan_out))
         self.W = theano.shared(numpy.asarray(
-            rng.uniform(low=-W_bound, high=W_bound, size=(input.shape[2], input.shape[2])),
+            rng.uniform(low=-W_bound, high=W_bound, size=(kern, kern)),
             dtype=theano.config.floatX),
                                borrow=True) #a weight matrix kern*kern
         
-        para_tensor=self.W.dimshuffle('x', 'x', 0, 1)
+        #para_tensor=self.W.dimshuffle('x', 'x', 0, 1)
         
-        simi_tensor=compute_simi_feature(self.input, length_last_dim, para_tensor) #(input.shape[0]/2, input.shape[1], input.shape[3], input.shape[3])
-        simi_question=T.sum(simi_tensor, axis=3)
-        simi_answer=T.sum(simi_tensor, axis=2)
+        simi_tensor=compute_simi_feature(self.input, length_last_dim, self.W) #(input.shape[0]/2, input.shape[1], input.shape[3], input.shape[3])
+        simi_question=debug_print(T.sum(simi_tensor, axis=3).reshape((self.input.shape[0]/2, length_last_dim)),'simi_question')
+        simi_answer=debug_print(T.sum(simi_tensor, axis=2).reshape((self.input.shape[0]/2, length_last_dim)), 'simi_answer')
         
         weights_question =T.nnet.softmax(simi_question) 
         weights_answer=T.nnet.softmax(simi_answer) 
         
-        repeat_q=T.repeat(weights_question.T, kern, axis=2)
-        repeat_a=T.repeat(weights_answer, kern, axis=2)
+        concate=T.concatenate([weights_question, weights_answer], axis=1)
+        reshaped_concate=concate.reshape((input.shape[0], 1, 1, length_last_dim))
         
-        concate=T.concatenate([repeat_q, repeat_a], axis=2)
-        weight_tensor=concate.reshape((input.shape[0], 1, input.shape[2], input.shape[3]))
+        weight_tensor=T.repeat(reshaped_concate, kern, axis=2)
+        
         ele_add=self.input+weight_tensor
         self.output=T.sum(ele_add, axis=3)
 
         self.params = [self.W]
 
-def compute_simi_feature(tensor, dim, para_tensor):
+def compute_simi_feature(tensor, dim, para_matrix):
     odd_tensor=debug_print(tensor[0:tensor.shape[0]:2,:,:,:],'odd_tensor')
     even_tensor=debug_print(tensor[1:tensor.shape[0]:2,:,:,:], 'even_tensor')
-    even_tensor=T.dot(even_tensor, para_tensor)
+    even_tensor_after_translate=debug_print(T.dot(para_matrix, even_tensor.reshape((tensor.shape[2], dim*tensor.shape[0]/2))), 'even_tensor_after_translate')
+    fake_even_tensor=debug_print(even_tensor_after_translate.reshape((tensor.shape[0]/2, tensor.shape[1], tensor.shape[2], tensor.shape[3])),'fake_even_tensor')
 
-    repeated_1=debug_print(T.repeat(odd_tensor, dim, axis=3),'repeat_odd')
-    repeated_2=debug_print(repeat_whole_matrix(even_tensor, dim, False),'repeat_even')
+    repeated_1=debug_print(T.repeat(odd_tensor, dim, axis=3),'repeated_1')
+    repeated_2=debug_print(repeat_whole_matrix(fake_even_tensor, dim, False),'repeated_2')
     #repeated_2=T.repeat(even_tensor, even_tensor.shape[3], axis=2).reshape((tensor.shape[0]/2, tensor.shape[1], tensor.shape[2], tensor.shape[3]**2))    
-    '''
-    square_distance=T.sum(T.sqr(repeated_1-repeated_2), axis=2)
-    root_square_distance=T.sqrt(T.maximum(square_distance, 1e-20))
-    list_of_simi=1.0/T.exp(root_square_distance)
-    '''
     length_1=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_1), axis=2)),'length_1')
     length_2=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_2), axis=2)), 'length_2')
 
     multi=debug_print(repeated_1*repeated_2, 'multi')
     sum_multi=debug_print(T.sum(multi, axis=2),'sum_multi')
     
-    list_of_simi= debug_print(sum_multi/(length_1*length_2+1e-20),'list_of_simi')   #to get rid of zero length
+    list_of_simi= debug_print(sum_multi/(length_1*length_2),'list_of_simi')   #to get rid of zero length
     
     return list_of_simi.reshape((tensor.shape[0]/2, tensor.shape[1], tensor.shape[3], tensor.shape[3]))
 

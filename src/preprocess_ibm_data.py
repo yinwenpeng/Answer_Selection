@@ -107,12 +107,28 @@ def reformat():
     print 'train reformat over'
                      
     
-        
+def check_max_sentLength():
+    #max_length ;  1034
+    ibmPath='/mounts/data/proj/wenpeng/Dataset/insuranceQA/';
+    files=[ibmPath+'train.txt', ibmPath+'dev.txt', ibmPath+'test1.txt', ibmPath+'test2.txt']       
+    max_length=0
+    for file in files:
+        read_file=open(file, 'r')
+        for line in read_file:
+            tokens=line.strip().split('\t')
+            sent1=len(tokens[1].split())
+            sent2=len(tokens[2].split())
+            if sent1>max_length:
+                max_length= sent1
+            if sent2>max_length:
+                max_length= sent2
+        read_file.close()
+    print 'max_length ; ', max_length
         
         
         
 if __name__ == '__main__':
-    reformat()
+    check_max_sentLength()
             
     
     

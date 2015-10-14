@@ -27,14 +27,15 @@ def load_ibm_corpus(vocabFile, trainFile, devFile, maxlength):
         vocab[tokens[1]]=word_ind #word2id
         word_ind+=1
     read_vocab.close()
+    sentlength_limit=1040
     #load train file
     def load_train_file(file, word2id):   
-        #id2count={}
         read_file=open(file, 'r')
         data=[]
         Lengths=[]
         leftPad=[]
         rightPad=[]
+        line_control=0
         for line in read_file:
             tokens=line.strip().split('\t')  # label, question, answer
             #question
@@ -42,6 +43,9 @@ def load_ibm_corpus(vocabFile, trainFile, devFile, maxlength):
                 sent=[]
                 words=tokens[i].strip().split()  
                 length=len(words)
+                if length>sentlength_limit:
+                    words=words[:sentlength_limit]
+                    length=sentlength_limit
                 Lengths.append(length)
                 left=(maxlength-length)/2
                 right=maxlength-left-length
@@ -55,6 +59,9 @@ def load_ibm_corpus(vocabFile, trainFile, devFile, maxlength):
                     sent.append(word2id.get(word))
                 sent+=[0]*right
                 data.append(sent)
+            line_control+=1
+            #if line_control==100:
+            #    break
         read_file.close()
         return numpy.array(data),numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad)
 
@@ -65,6 +72,7 @@ def load_ibm_corpus(vocabFile, trainFile, devFile, maxlength):
         Lengths=[]
         leftPad=[]
         rightPad=[]
+        line_control=0
         for line in read_file:
             tokens=line.strip().split('\t')
             Y.append(int(tokens[0])) # make the label starts from 0 to 4
@@ -72,6 +80,9 @@ def load_ibm_corpus(vocabFile, trainFile, devFile, maxlength):
                 sent=[]
                 words=tokens[i].strip().split() 
                 length=len(words)
+                if length>sentlength_limit:
+                    words=words[:sentlength_limit]
+                    length=sentlength_limit
                 Lengths.append(length)
                 left=(maxlength-length)/2
                 right=maxlength-left-length
@@ -85,8 +96,11 @@ def load_ibm_corpus(vocabFile, trainFile, devFile, maxlength):
                     sent.append(word2id.get(word))
                 sent+=[0]*right
                 data.append(sent)
+            line_control+=1
+            #if line_control==1000:
+            #    break
         read_file.close()
-        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad) 
+        return numpy.array(data),Y, numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad) 
 
     indices_train, trainLengths, trainLeftPad, trainRightPad=load_train_file(trainFile, vocab)
     print 'train file loaded over, total pairs: ', len(trainLengths)/2
@@ -111,10 +125,10 @@ def load_ibm_corpus(vocabFile, trainFile, devFile, maxlength):
     dev_left_pad=shared_dataset(devLeftPad)
     dev_right_pad=shared_dataset(devRightPad)
                                 
-    valid_set_y = shared_dataset(devY)
+    #valid_set_y = shared_dataset(devY)
     
 
-    rval = [(indices_train,train_set_Lengths, train_left_pad, train_right_pad), (indices_dev, valid_set_y, valid_set_Lengths, dev_left_pad, dev_right_pad)]
+    rval = [(indices_train,train_set_Lengths, train_left_pad, train_right_pad), (indices_dev, devY, valid_set_Lengths, dev_left_pad, dev_right_pad)]
     return rval, word_ind-1
 
 def load_word2vec_to_init(rand_values):
