@@ -62,7 +62,60 @@ def transcate_word2vec_into_msr_vocab():
     readFile.close()
     print 'word2vec trancate over'
 
+def putAllMtTogether():
+    pathroot='/mounts/data/proj/wenpeng/Dataset/paraphraseMT/'
+    train_files=[pathroot+'badger/output_trainparaphrase/Badger-seg.scr', pathroot+'BLEU&NIST/Paraphrase/result_train/BLEU-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_train/NIST-seg.scr', pathroot+'maxsim-v1.01/paraphrase/train.score',
+                 pathroot+'METROE/meteor-1.4/paraphrase/train_score_pure.txt', pathroot+'SEPIA/SEPIA_PKG_0.2/paraphraseTrainResult/system01-seg.scr',
+                 pathroot+'TER/tercom-0.7.25/paraphrase/train_score.ter', pathroot+'TERp/terp.v1/paraphrase/output_traindata/terpa.simple.system01.seg.scr']
+    
+    test_files=[pathroot+'badger/output_testparaphrase/Badger-seg.scr', pathroot+'BLEU&NIST/Paraphrase/result_test/BLEU-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_test/NIST-seg.scr', pathroot+'maxsim-v1.01/paraphrase/test.score',
+                 pathroot+'METROE/meteor-1.4/paraphrase/test_score_pure.txt', pathroot+'SEPIA/SEPIA_PKG_0.2/paraphraseTestResult/system01-seg.scr',
+                 pathroot+'TER/tercom-0.7.25/paraphrase/test_score.ter', pathroot+'TERp/terp.v1/paraphrase/output_testdata/terpa.simple.system01.seg.scr']
+
+    posi=[4, 4,4,1, 3,4, 3,4]
+    
+    train_write=open(pathroot+'concate_8mt_train.txt', 'w')
+    scores=[]
+    for i in range(8):
+        read_file=open(train_files[i], 'r')
+        list_values=[]
+        for line in read_file:
+            tokens=line.strip().split()
+            list_values.append(tokens[posi[i]])
+        read_file.close()
+        scores.append(list_values)
+    values_matrix=numpy.array(scores)
+    col=values_matrix.shape[1]
+    for j in range(col):
+        for i in range(8):
+            train_write.write(values_matrix[i,j]+'\t')
+        train_write.write('\n')
+    train_write.close()
+    #test
+    test_write=open(pathroot+'concate_8mt_test.txt', 'w')
+    scores=[]
+    for i in range(8):
+        read_file=open(test_files[i], 'r')
+        list_values=[]
+        for line in read_file:
+            tokens=line.strip().split()
+            list_values.append(tokens[posi[i]])
+        read_file.close()
+        scores.append(list_values)
+    values_matrix=numpy.array(scores)
+    col=values_matrix.shape[1]
+    for j in range(col):
+        for i in range(8):
+            test_write.write(values_matrix[i,j]+'\t')
+        test_write.write('\n')
+    test_write.close()
+    print 'finished'
+    
+
 if __name__ == '__main__':
     #Extract_Vocab()
-    transcate_word2vec_into_msr_vocab()
+    #transcate_word2vec_into_msr_vocab()
+    putAllMtTogether()
             

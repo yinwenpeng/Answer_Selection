@@ -17,22 +17,24 @@ from WPDefined import ConvFoldPoolLayer, dropout_from_layer, shared_dataset, rep
 from cis.deep.utils.theano import debug_print
 from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
-from loadData import load_msr_corpus, load_word2vec_to_init
+from loadData import load_msr_corpus, load_word2vec_to_init, load_mts
 from word2embeddings.nn.util import zero_value, random_value_normal
 from common_functions import Conv_with_input_para, Average_Pooling_for_batch1, create_conv_para
 
 
 
 
-def evaluate_lenet5(learning_rate=0.055, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.0000001, update_freq=10):
+                    margin=0.5, L2_weight=0.0000001, update_freq=1):
 #def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[6, 12], batch_size=70, useAllSamples=0, kmax=30, ktop=5, filter_size=[10,7],
 #                    L2_weight=0.000005, dropout_p=0.5, useEmb=0, task=5, corpus=1):
 
     rootPath='/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/';
     rng = numpy.random.RandomState(23455)
     datasets, vocab_size=load_msr_corpus(rootPath+'vocab.txt', rootPath+'tokenized_train.txt', rootPath+'tokenized_test.txt', maxSentLength)
+    mtPath='/mounts/data/proj/wenpeng/Dataset/paraphraseMT/'
+    mt_train, mt_test=load_mts(mtPath+'concate_8mt_train.txt', mtPath+'concate_8mt_test.txt')
     indices_train, trainY, trainLengths, trainLeftPad, trainRightPad= datasets[0]
     indices_train_l=indices_train[::2,:]
     indices_train_r=indices_train[1::2,:]
@@ -90,6 +92,7 @@ def evaluate_lenet5(learning_rate=0.055, n_epochs=2000, nkerns=[50], batch_size=
     right_r=T.iscalar()
     length_l=T.iscalar()
     length_r=T.iscalar()
+    mts=T.dmatrix()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
     ishape = (emb_size, maxSentLength)  # this is the size of MNIST images
     filter_size=(emb_size,window_width)
@@ -134,13 +137,15 @@ def evaluate_lenet5(learning_rate=0.055, n_epochs=2000, nkerns=[50], batch_size=
     sum_uni_r=T.sum(layer0_r_input, axis=3).reshape((1, emb_size))
     norm_uni_r=sum_uni_r/T.sqrt((sum_uni_r**2).sum())
     uni_cosine=T.dot(norm_uni_l, norm_uni_r.T).reshape((1,1))
-    eucli=(1-T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum())).reshape((1,1))
+    eucli=T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()).reshape((1,1))#25.2%
+    #eucli=1.0/(1+T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()).reshape((1,1)))
     len_l=length_l.reshape((1,1))
     len_r=length_r.reshape((1,1))    
     length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
-    layer3_input=T.concatenate([norm_uni_l,norm_uni_r,  uni_cosine,eucli, len_l, len_r, length_gap], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
-    #layer3=LogisticRegression(rng, input=layer3_input, n_in=hidden_size+emb_size*2+2, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=emb_size*2+5, n_out=2)
+    layer3_input=mts
+    #layer3_input=T.concatenate([norm_uni_l,norm_uni_r,  uni_cosine,eucli, len_l, len_r, length_gap, mts], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=8, n_out=2)
+    #layer3=LogisticRegression(rng, input=layer3_input, n_in=emb_size*2+5+8, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =(layer3.W** 2).sum()#+(layer2.W** 2).sum()+(conv_W** 2).sum()
@@ -159,7 +164,8 @@ def evaluate_lenet5(learning_rate=0.055, n_epochs=2000, nkerns=[50], batch_size=
             left_r: testLeftPad_r[index],
             right_r: testRightPad_r[index],
             length_l: testLengths_l[index],
-            length_r: testLengths_r[index]}, on_unused_input='ignore')
+            length_r: testLengths_r[index],
+            mts: mt_test[index: index + batch_size]}, on_unused_input='ignore')
 
 
     #params = layer3.params + layer2.params + layer1.params+ [conv_W, conv_b]
@@ -190,7 +196,8 @@ def evaluate_lenet5(learning_rate=0.055, n_epochs=2000, nkerns=[50], batch_size=
             left_r: trainLeftPad_r[index],
             right_r: trainRightPad_r[index],
             length_l: trainLengths_l[index],
-            length_r: trainLengths_r[index]}, on_unused_input='ignore')
+            length_r: trainLengths_r[index],
+            mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
 
     train_model_predict = theano.function([index], [cost_this,layer3.errors(y)],
           givens={
@@ -202,7 +209,8 @@ def evaluate_lenet5(learning_rate=0.055, n_epochs=2000, nkerns=[50], batch_size=
             left_r: trainLeftPad_r[index],
             right_r: trainRightPad_r[index],
             length_l: trainLengths_l[index],
-            length_r: trainLengths_r[index]}, on_unused_input='ignore')
+            length_r: trainLengths_r[index],
+            mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
 
 
 
