@@ -24,9 +24,9 @@ from common_functions import Conv_with_input_para, Average_Pooling_for_batch1, c
 
 
 
-def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.0000001, update_freq=1):
+                    margin=0.5, L2_weight=0.00001, update_freq=1):
 #def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[6, 12], batch_size=70, useAllSamples=0, kmax=30, ktop=5, filter_size=[10,7],
 #                    L2_weight=0.000005, dropout_p=0.5, useEmb=0, task=5, corpus=1):
 
@@ -141,16 +141,18 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[50], batch_size=1
     #eucli=1.0/(1+T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()).reshape((1,1)))
     len_l=length_l.reshape((1,1))
     len_r=length_r.reshape((1,1))    
-    length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
-    layer3_input=mts
-    #layer3_input=T.concatenate([norm_uni_l,norm_uni_r,  uni_cosine,eucli, len_l, len_r, length_gap, mts], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=8, n_out=2)
-    #layer3=LogisticRegression(rng, input=layer3_input, n_in=emb_size*2+5+8, n_out=2)
+    #length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
+    length_gap=T.sqrt((len_l-len_r)**2).reshape((1,1))
+    #layer3_input=mts
+    #layer3_input=T.concatenate([norm_uni_l,norm_uni_r,  uni_cosine,eucli, len_l, len_r, length_gap], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
+    layer3_input=T.concatenate([mts,eucli, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
+    #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=emb_size+11, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =(layer3.W** 2).sum()#+(layer2.W** 2).sum()+(conv_W** 2).sum()
-    cost_this =layer3.negative_log_likelihood(y)+L2_weight*L2_reg
-    cost=(cost_this+cost_tmp)/update_freq
+    cost_this =layer3.negative_log_likelihood(y)#+L2_weight*L2_reg
+    cost=(cost_this+cost_tmp)/update_freq+L2_weight*L2_reg
     
 
     
