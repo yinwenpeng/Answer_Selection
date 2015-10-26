@@ -27,8 +27,6 @@ from common_functions import Conv_with_input_para, Average_Pooling_for_batch1, c
 def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
                     margin=0.5, L2_weight=0.00001, update_freq=1):
-#def evaluate_lenet5(learning_rate=0.1, n_epochs=2000, nkerns=[6, 12], batch_size=70, useAllSamples=0, kmax=30, ktop=5, filter_size=[10,7],
-#                    L2_weight=0.000005, dropout_p=0.5, useEmb=0, task=5, corpus=1):
 
     rootPath='/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/';
     rng = numpy.random.RandomState(23455)
