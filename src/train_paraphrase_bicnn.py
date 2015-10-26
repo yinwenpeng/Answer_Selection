@@ -143,9 +143,9 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
     length_gap=T.sqrt((len_l-len_r)**2).reshape((1,1))
     #layer3_input=mts
     #layer3_input=T.concatenate([norm_uni_l,norm_uni_r,  uni_cosine,eucli, len_l, len_r, length_gap], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
-    layer3_input=T.concatenate([mts,eucli, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
+    layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=emb_size+11, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=emb_size+12, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =(layer3.W** 2).sum()#+(layer2.W** 2).sum()+(conv_W** 2).sum()
