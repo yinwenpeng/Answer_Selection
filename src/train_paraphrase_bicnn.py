@@ -24,10 +24,12 @@ from common_functions import Conv_with_input_para, Average_Pooling_for_batch1, c
 
 
 
-def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.00001, update_freq=10):
+                    margin=0.5, L2_weight=0.00005, update_freq=10):
 
+    model_options = locals().copy()
+    print "model options", model_options
     rootPath='/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/';
     rng = numpy.random.RandomState(23455)
     datasets, vocab_size=load_msr_corpus(rootPath+'vocab.txt', rootPath+'tokenized_train.txt', rootPath+'tokenized_test.txt', maxSentLength)
