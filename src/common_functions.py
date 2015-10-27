@@ -199,16 +199,21 @@ class Average_Pooling_for_batch1(object):
         dot_r=T.sum(input_r_matrix*weights_answer_matrix, axis=1)
         
         self.output=T.concatenate([dot_l, dot_r], axis=0).reshape((1, kern*2))
-        self.output_cosine=T.sum(dot_l*dot_r)/T.sqrt((dot_l**2).sum())/T.sqrt((dot_r**2).sum()).reshape((1,1))
-        #self.output=T.concatenate([self.output_concate, self.output_cosine], axis=1)
+        #self.output_cosine=T.sum(dot_l*dot_r)/T.sqrt((dot_l**2).sum())/T.sqrt((dot_r**2).sum()).reshape((1,1))
+        
+        '''
+        dot_l=T.sum(input_l_matrix, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient
+        dot_r=T.sum(input_r_matrix, axis=1)        
+        '''
+        self.output_eucli=debug_print(T.sqrt(T.sqr(dot_l-dot_r).sum()+1e-20).reshape((1,1)),'output_eucli')
         
         
 
         self.params = [self.W]
 
 def compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length_r, para_matrix, dim):
-    matrix_r_after_translate=debug_print(T.dot(para_matrix, input_r_matrix), 'matrix_r_after_translate')
-    #matrix_r_after_translate=input_r_matrix
+    #matrix_r_after_translate=debug_print(T.dot(para_matrix, input_r_matrix), 'matrix_r_after_translate')
+    matrix_r_after_translate=input_r_matrix
 
     repeated_1=debug_print(T.repeat(input_l_matrix, dim, axis=1)[:, : (length_l*length_r)],'repeated_1') # add 10 because max_sent_length is only input for conv, conv will make size bigger
     repeated_2=debug_print(repeat_whole_tensor(matrix_r_after_translate, dim, False)[:, : (length_l*length_r)],'repeated_2')
