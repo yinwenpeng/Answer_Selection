@@ -24,15 +24,15 @@ from common_functions import Conv_with_input_para, Average_Pooling_for_batch1, c
 
 
 
-def evaluate_lenet5(learning_rate=0.095, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.00005, update_freq=1):
+                    margin=0.5, L2_weight=0.000005, update_freq=1):
 
     rootPath='/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/';
     rng = numpy.random.RandomState(23455)
     datasets, vocab_size=load_msr_corpus(rootPath+'vocab.txt', rootPath+'tokenized_train.txt', rootPath+'tokenized_test.txt', maxSentLength)
     mtPath='/mounts/data/proj/wenpeng/Dataset/paraphraseMT/'
-    mt_train, mt_test=load_mts(mtPath+'concate_8mt_train.txt', mtPath+'concate_8mt_test.txt')
+    mt_train, mt_test=load_mts(mtPath+'concate_15mt_train.txt', mtPath+'concate_15mt_test.txt')
     indices_train, trainY, trainLengths, trainLeftPad, trainRightPad= datasets[0]
     indices_train_l=indices_train[::2,:]
     indices_train_r=indices_train[1::2,:]
@@ -131,21 +131,28 @@ def evaluate_lenet5(learning_rate=0.095, n_epochs=2000, nkerns=[50], batch_size=
     layer2=HiddenLayer(rng, input=layer1_out, n_in=nkerns[0]*2, n_out=hidden_size, activation=T.tanh)
     '''
     sum_uni_l=T.sum(layer0_l_input, axis=3).reshape((1, emb_size))
-    norm_uni_l=sum_uni_l/T.sqrt((sum_uni_l**2).sum())
+    #norm_uni_l=sum_uni_l/T.sqrt((sum_uni_l**2).sum())
     sum_uni_r=T.sum(layer0_r_input, axis=3).reshape((1, emb_size))
-    norm_uni_r=sum_uni_r/T.sqrt((sum_uni_r**2).sum())
-    uni_cosine=T.dot(norm_uni_l, norm_uni_r.T).reshape((1,1))
-    eucli=T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()).reshape((1,1))#25.2%
+    #norm_uni_r=sum_uni_r/T.sqrt((sum_uni_r**2).sum())
+    
+    uni_cosine=cosine(sum_uni_l, sum_uni_r)
+    linear=Linear(sum_uni_l, sum_uni_r)
+    poly=Poly(sum_uni_l, sum_uni_r)
+    sigmoid=Sigmoid(sum_uni_l, sum_uni_r)
+    rbf=RBF(sum_uni_l, sum_uni_r)
+    gesd=GESD(sum_uni_l, sum_uni_r)
+    eucli=EUCLID(sum_uni_l, sum_uni_r)#25.2%
+    
     #eucli=1.0/(1+T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()).reshape((1,1)))
     len_l=length_l.reshape((1,1))
     len_r=length_r.reshape((1,1))    
     #length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
     length_gap=T.sqrt((len_l-len_r)**2).reshape((1,1))
     #layer3_input=mts
-    #layer3_input=T.concatenate([norm_uni_l,norm_uni_r,  uni_cosine,eucli, len_l, len_r, length_gap], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
-    layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
+    layer3_input=T.concatenate([eucli,len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
+    #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=emb_size+12, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=3, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =(layer3.W** 2).sum()#+(layer2.W** 2).sum()+(conv_W** 2).sum()
@@ -330,8 +337,32 @@ def evaluate_lenet5(learning_rate=0.095, n_epochs=2000, nkerns=[50], batch_size=
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
 
-
-        
+def cosine(vec1, vec2):
+    norm_uni_l=T.sqrt((vec1**2).sum())
+    norm_uni_r=T.sqrt((vec2**2).sum())
+    
+    dot=T.dot(vec1,vec2.T)
+    
+    return (dot/(norm_uni_l*norm_uni_r)).reshape((1,1))    
+def Linear(sum_uni_l, sum_uni_r):
+    return (T.dot(sum_uni_l,sum_uni_r.T)).reshape((1,1))    
+def Poly(sum_uni_l, sum_uni_r):
+    dot=T.dot(sum_uni_l,sum_uni_r.T)
+    poly=(0.5*dot+1)**3
+    return poly.reshape((1,1))    
+def Sigmoid(sum_uni_l, sum_uni_r):
+    dot=T.dot(sum_uni_l,sum_uni_r.T)
+    return T.tanh(1.0*dot+1).reshape((1,1))    
+def RBF(sum_uni_l, sum_uni_r):
+    eucli=T.sum((sum_uni_l-sum_uni_r)**2)
+    return T.exp(-0.5*eucli).reshape((1,1))    
+def GESD (sum_uni_l, sum_uni_r):
+    eucli=1/(1+T.sum((sum_uni_l-sum_uni_r)**2))
+    kernel=1/(1+T.exp(-(T.dot(sum_uni_l,sum_uni_r.T)+1)))
+    return (eucli*kernel).reshape((1,1))   
+def EUCLID(sum_uni_l, sum_uni_r):
+    return T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()).reshape((1,1))
+    
 
 
 if __name__ == '__main__':
