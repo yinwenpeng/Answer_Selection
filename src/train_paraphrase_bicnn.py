@@ -24,9 +24,9 @@ from common_functions import Conv_with_input_para, Average_Pooling_for_batch1, c
 
 
 
-def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.000005, update_freq=1):
+                    margin=0.5, L2_weight=0.00001, update_freq=10):
 
     rootPath='/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/';
     rng = numpy.random.RandomState(23455)
@@ -108,7 +108,7 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
     layer0_l_input = embeddings[x_index_l.flatten()].reshape((batch_size,maxSentLength, emb_size)).transpose(0, 2, 1).dimshuffle(0, 'x', 1, 2)
     layer0_r_input = embeddings[x_index_r.flatten()].reshape((batch_size,maxSentLength, emb_size)).transpose(0, 2, 1).dimshuffle(0, 'x', 1, 2)
     
-    '''
+    
     conv_W, conv_b=create_conv_para(rng, filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]))
 
     #layer0_output = debug_print(layer0.output, 'layer0.output')
@@ -120,44 +120,47 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
             filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]), W=conv_W, b=conv_b)
     layer0_l_output=debug_print(layer0_l.output, 'layer0_l.output')
     layer0_r_output=debug_print(layer0_r.output, 'layer0_r.output')
-
+    
     layer1=Average_Pooling_for_batch1(rng, input_l=layer0_l_output, input_r=layer0_r_output, kern=nkerns[0],
                                        left_l=left_l, right_l=right_l, left_r=left_r, right_r=right_r, 
                                        length_l=length_l+filter_size[1]-1, length_r=length_r+filter_size[1]-1,
                                        dim=maxSentLength+filter_size[1]-1)
     
-    layer1_out=debug_print(layer1.output, 'layer1_out')
+    layer1_out=debug_print(layer1.output_eucli, 'layer1_out')
     
-    layer2=HiddenLayer(rng, input=layer1_out, n_in=nkerns[0]*2, n_out=hidden_size, activation=T.tanh)
-    '''
+    
+    #layer2=HiddenLayer(rng, input=layer1_out, n_in=nkerns[0]*2, n_out=hidden_size, activation=T.tanh)
+    
+    
     sum_uni_l=T.sum(layer0_l_input, axis=3).reshape((1, emb_size))
     #norm_uni_l=sum_uni_l/T.sqrt((sum_uni_l**2).sum())
     sum_uni_r=T.sum(layer0_r_input, axis=3).reshape((1, emb_size))
     #norm_uni_r=sum_uni_r/T.sqrt((sum_uni_r**2).sum())
-    
+    '''
     uni_cosine=cosine(sum_uni_l, sum_uni_r)
     linear=Linear(sum_uni_l, sum_uni_r)
     poly=Poly(sum_uni_l, sum_uni_r)
     sigmoid=Sigmoid(sum_uni_l, sum_uni_r)
     rbf=RBF(sum_uni_l, sum_uni_r)
     gesd=GESD(sum_uni_l, sum_uni_r)
-    eucli=EUCLID(sum_uni_l, sum_uni_r)#25.2%
+    '''
+    eucli_1=EUCLID(sum_uni_l, sum_uni_r)#25.2%
     
     #eucli=1.0/(1+T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()).reshape((1,1)))
     len_l=length_l.reshape((1,1))
     len_r=length_r.reshape((1,1))    
     #length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
-    length_gap=T.sqrt((len_l-len_r)**2).reshape((1,1))
+    length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
-    layer3_input=T.concatenate([eucli,len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
+    layer3_input=T.concatenate([eucli_1,layer1_out,len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=3, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=4, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
-    L2_reg =(layer3.W** 2).sum()#+(layer2.W** 2).sum()+(conv_W** 2).sum()
-    cost_this =layer3.negative_log_likelihood(y)#+L2_weight*L2_reg
-    cost=(cost_this+cost_tmp)/update_freq+L2_weight*L2_reg
+    L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()
+    cost_this =debug_print(layer3.negative_log_likelihood(y), 'cost_this')#+L2_weight*L2_reg
+    cost=debug_print((cost_this+cost_tmp)/update_freq+L2_weight*L2_reg, 'cost')
     
 
     
@@ -176,7 +179,7 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
 
 
     #params = layer3.params + layer2.params + layer1.params+ [conv_W, conv_b]
-    params = layer3.params# + layer2.params + [conv_W, conv_b]
+    params = layer3.params+ [conv_W, conv_b]# + layer1.params 
     
     accumulator=[]
     for para_i in params:
@@ -193,7 +196,7 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
         updates.append((param_i, param_i - learning_rate * grad_i / T.sqrt(acc)))   #AdaGrad
         updates.append((acc_i, acc))    
   
-    train_model = theano.function([index], [cost,layer3.errors(y)], updates=updates,
+    train_model = theano.function([index], [cost,layer3.errors(y), layer3_input], updates=updates,
           givens={
             x_index_l: indices_train_l[index: index + batch_size],
             x_index_r: indices_train_r[index: index + batch_size],
@@ -264,10 +267,11 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
                 cost_tmp+=cost_ij
                 error_sum+=error_ij
             else:
-                cost_average, error_ij = train_model(batch_start)
+                cost_average, error_ij, layer3_input= train_model(batch_start)
                 #print 'training @ iter = '+str(iter)+' average cost: '+str(cost_average)+' sum error: '+str(error_sum)+'/'+str(update_freq)
                 error_sum=0
                 cost_tmp=0#reset for the next batch
+                #print layer3_input
             #exit(0)
             if iter % n_train_batches == 0:
                 print 'training @ iter = '+str(iter)+' average cost: '+str(cost_average)+' error: '+str(error_sum)+'/'+str(update_freq)+' error rate: '+str(error_sum*1.0/update_freq)
@@ -275,15 +279,15 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
             #    exit(0)
             
             if iter % n_train_batches == 0:
-                write_file=open('log.txt', 'w')
+                #write_file=open('log.txt', 'w')
                 test_losses=[]
                 for i in test_batch_start:
                     test_loss, pred_y=test_model(i)
                     #test_losses = [test_model(i) for i in test_batch_start]
                     test_losses.append(test_loss)
-                    write_file.write(str(pred_y[0])+'\n')#+'\t'+str(testY[i].eval())+
+                    #write_file.write(str(pred_y[0])+'\n')#+'\t'+str(testY[i].eval())+
 
-                write_file.close()
+                #write_file.close()
                 test_score = numpy.mean(test_losses)
                 print(('\t\t\t\t\t\tepoch %i, minibatch %i/%i, test error of best '
                            'model %f %%') %
@@ -361,7 +365,7 @@ def GESD (sum_uni_l, sum_uni_r):
     kernel=1/(1+T.exp(-(T.dot(sum_uni_l,sum_uni_r.T)+1)))
     return (eucli*kernel).reshape((1,1))   
 def EUCLID(sum_uni_l, sum_uni_r):
-    return T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()).reshape((1,1))
+    return T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()+1e-20).reshape((1,1))
     
 
 
