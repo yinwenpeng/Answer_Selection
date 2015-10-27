@@ -82,7 +82,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     error_sum=0
     
     # allocate symbolic variables for the data
-    index = T.lscalar()  # index to a [mini]batch
+    index = T.lscalar()
     x_index_l = T.imatrix('x_index_l')   # now, x is the index matrix, must be integer
     x_index_r = T.imatrix('x_index_r')
     y = T.ivector('y')  
