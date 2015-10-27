@@ -162,8 +162,7 @@ class Average_Pooling_for_batch1(object):
 
         #self.input = input
 
-        # there are "num input feature maps * filter height * filter width"
-        # inputs to each hidden unit
+
         fan_in = kern #kern numbers
         # each unit in the lower layer receives a gradient from:
         # "num output feature maps * filter height * filter width" /

@@ -152,7 +152,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     len_l=length_l.reshape((1,1))
     len_r=length_r.reshape((1,1))    
     #length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
-    length_gap=T.sqrt((len_l-len_r)**2)
+    #length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
     layer3_input=T.concatenate([eucli_1,layer1_out,len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
