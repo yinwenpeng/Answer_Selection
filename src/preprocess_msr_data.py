@@ -64,21 +64,31 @@ def transcate_word2vec_into_msr_vocab():
 
 def putAllMtTogether():
     pathroot='/mounts/data/proj/wenpeng/Dataset/paraphraseMT/'
-    train_files=[pathroot+'badger/output_trainparaphrase/Badger-seg.scr', pathroot+'BLEU&NIST/Paraphrase/result_train/BLEU-seg.scr',
-                 pathroot+'BLEU&NIST/Paraphrase/result_train/NIST-seg.scr', pathroot+'maxsim-v1.01/paraphrase/train.score',
+    train_files=[pathroot+'badger/output_trainparaphrase/Badger-seg.scr', pathroot+'BLEU&NIST/Paraphrase/result_train/BLEU1-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_train/BLEU2-seg.scr',pathroot+'BLEU&NIST/Paraphrase/result_train/BLEU3-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_train/BLEU4-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_train/NIST1-seg.scr',pathroot+'BLEU&NIST/Paraphrase/result_train/NIST2-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_train/NIST3-seg.scr',pathroot+'BLEU&NIST/Paraphrase/result_train/NIST4-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_train/NIST5-seg.scr',
+                  pathroot+'maxsim-v1.01/paraphrase/train.score',
                  pathroot+'METROE/meteor-1.4/paraphrase/train_score_pure.txt', pathroot+'SEPIA/SEPIA_PKG_0.2/paraphraseTrainResult/system01-seg.scr',
                  pathroot+'TER/tercom-0.7.25/paraphrase/train_score.ter', pathroot+'TERp/terp.v1/paraphrase/output_traindata/terpa.simple.system01.seg.scr']
     
-    test_files=[pathroot+'badger/output_testparaphrase/Badger-seg.scr', pathroot+'BLEU&NIST/Paraphrase/result_test/BLEU-seg.scr',
-                 pathroot+'BLEU&NIST/Paraphrase/result_test/NIST-seg.scr', pathroot+'maxsim-v1.01/paraphrase/test.score',
+    test_files=[pathroot+'badger/output_testparaphrase/Badger-seg.scr', pathroot+'BLEU&NIST/Paraphrase/result_test/BLEU1-seg.scr',
+                pathroot+'BLEU&NIST/Paraphrase/result_test/BLEU2-seg.scr',pathroot+'BLEU&NIST/Paraphrase/result_test/BLEU3-seg.scr',
+                pathroot+'BLEU&NIST/Paraphrase/result_test/BLEU4-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_test/NIST1-seg.scr',pathroot+'BLEU&NIST/Paraphrase/result_test/NIST2-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_test/NIST3-seg.scr',pathroot+'BLEU&NIST/Paraphrase/result_test/NIST4-seg.scr',
+                 pathroot+'BLEU&NIST/Paraphrase/result_test/NIST5-seg.scr',
+                  pathroot+'maxsim-v1.01/paraphrase/test.score',
                  pathroot+'METROE/meteor-1.4/paraphrase/test_score_pure.txt', pathroot+'SEPIA/SEPIA_PKG_0.2/paraphraseTestResult/system01-seg.scr',
                  pathroot+'TER/tercom-0.7.25/paraphrase/test_score.ter', pathroot+'TERp/terp.v1/paraphrase/output_testdata/terpa.simple.system01.seg.scr']
 
-    posi=[4, 4,4,1, 3,4, 3,4]
+    posi=[4, 4,4,4,4,  4,4,4,4,4, 1, 3,4, 3,4]
     
-    train_write=open(pathroot+'concate_8mt_train.txt', 'w')
+    train_write=open(pathroot+'concate_15mt_train.txt', 'w')
     scores=[]
-    for i in range(8):
+    for i in range(15):
         read_file=open(train_files[i], 'r')
         list_values=[]
         for line in read_file:
@@ -89,14 +99,14 @@ def putAllMtTogether():
     values_matrix=numpy.array(scores)
     col=values_matrix.shape[1]
     for j in range(col):
-        for i in range(8):
+        for i in range(15):
             train_write.write(values_matrix[i,j]+'\t')
         train_write.write('\n')
     train_write.close()
     #test
-    test_write=open(pathroot+'concate_8mt_test.txt', 'w')
+    test_write=open(pathroot+'concate_15mt_test.txt', 'w')
     scores=[]
-    for i in range(8):
+    for i in range(15):
         read_file=open(test_files[i], 'r')
         list_values=[]
         for line in read_file:
@@ -107,7 +117,7 @@ def putAllMtTogether():
     values_matrix=numpy.array(scores)
     col=values_matrix.shape[1]
     for j in range(col):
-        for i in range(8):
+        for i in range(15):
             test_write.write(values_matrix[i,j]+'\t')
         test_write.write('\n')
     test_write.close()

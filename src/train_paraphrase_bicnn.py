@@ -1,4 +1,3 @@
-
 import cPickle
 import gzip
 import os
@@ -20,13 +19,14 @@ from theano.tensor.nnet import conv
 from loadData import load_msr_corpus, load_word2vec_to_init, load_mts
 from word2embeddings.nn.util import zero_value, random_value_normal
 from common_functions import Conv_with_input_para, Average_Pooling_for_batch1, create_conv_para
+from random import shuffle
 
 
 
 
 def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.00005, update_freq=10):
+                    margin=0.5, L2_weight=0.00005, update_freq=1):
 
     model_options = locals().copy()
     print "model options", model_options
@@ -35,20 +35,26 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     datasets, vocab_size=load_msr_corpus(rootPath+'vocab.txt', rootPath+'tokenized_train.txt', rootPath+'tokenized_test.txt', maxSentLength)
     mtPath='/mounts/data/proj/wenpeng/Dataset/paraphraseMT/'
     mt_train, mt_test=load_mts(mtPath+'concate_15mt_train.txt', mtPath+'concate_15mt_test.txt')
-    indices_train, trainY, trainLengths, trainLeftPad, trainRightPad= datasets[0]
+    indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
     indices_train_l=indices_train[::2,:]
     indices_train_r=indices_train[1::2,:]
     trainLengths_l=trainLengths[::2]
     trainLengths_r=trainLengths[1::2]
+    normalized_train_length_l=normalized_train_length[::2]
+    normalized_train_length_r=normalized_train_length[1::2]
+
     trainLeftPad_l=trainLeftPad[::2]
     trainLeftPad_r=trainLeftPad[1::2]
     trainRightPad_l=trainRightPad[::2]
     trainRightPad_r=trainRightPad[1::2]    
-    indices_test, testY, testLengths, testLeftPad, testRightPad= datasets[1]
+    indices_test, testY, testLengths,normalized_test_length, testLeftPad, testRightPad= datasets[1]
     indices_test_l=indices_test[::2,:]
     indices_test_r=indices_test[1::2,:]
     testLengths_l=testLengths[::2]
     testLengths_r=testLengths[1::2]
+    normalized_test_length_l=normalized_test_length[::2]
+    normalized_test_length_r=normalized_test_length[1::2]
+    
     testLeftPad_l=testLeftPad[::2]
     testLeftPad_r=testLeftPad[1::2]
     testRightPad_l=testRightPad[::2]
@@ -92,6 +98,8 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     right_r=T.iscalar()
     length_l=T.iscalar()
     length_r=T.iscalar()
+    norm_length_l=T.dscalar()
+    norm_length_r=T.dscalar()
     mts=T.dmatrix()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
     ishape = (emb_size, maxSentLength)  # this is the size of MNIST images
@@ -128,7 +136,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
                                        length_l=length_l+filter_size[1]-1, length_r=length_r+filter_size[1]-1,
                                        dim=maxSentLength+filter_size[1]-1)
     
-    layer1_out=debug_print(layer1.output_eucli, 'layer1_out')
+    layer1_out=debug_print(layer1.output_simi, 'layer1_out')
     
     
     #layer2=HiddenLayer(rng, input=layer1_out, n_in=nkerns[0]*2, n_out=hidden_size, activation=T.tanh)
@@ -146,18 +154,18 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     rbf=RBF(sum_uni_l, sum_uni_r)
     gesd=GESD(sum_uni_l, sum_uni_r)
     '''
-    eucli_1=EUCLID(sum_uni_l, sum_uni_r)#25.2%
+    eucli_1=1.0/(1.0+EUCLID(sum_uni_l, sum_uni_r))#25.2%
     
-    #eucli=1.0/(1+T.sqrt(T.sqr(sum_uni_l-sum_uni_r).sum()).reshape((1,1)))
-    len_l=length_l.reshape((1,1))
-    len_r=length_r.reshape((1,1))    
+    #eucli_1=EUCLID(sum_uni_l, sum_uni_r)
+    len_l=norm_length_l.reshape((1,1))
+    len_r=norm_length_r.reshape((1,1))    
     #length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
     #length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
-    layer3_input=T.concatenate([eucli_1,layer1_out,len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
+    layer3_input=T.concatenate([mts, eucli_1,layer1_out,len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=4, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=15+4, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()
@@ -177,6 +185,8 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
             right_r: testRightPad_r[index],
             length_l: testLengths_l[index],
             length_r: testLengths_r[index],
+            norm_length_l: normalized_test_length_l[index],
+            norm_length_r: normalized_test_length_r[index],
             mts: mt_test[index: index + batch_size]}, on_unused_input='ignore')
 
 
@@ -209,6 +219,8 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
             right_r: trainRightPad_r[index],
             length_l: trainLengths_l[index],
             length_r: trainLengths_r[index],
+            norm_length_l: normalized_train_length_l[index],
+            norm_length_r: normalized_train_length_r[index],
             mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
 
     train_model_predict = theano.function([index], [cost_this,layer3.errors(y)],
@@ -222,6 +234,8 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
             right_r: trainRightPad_r[index],
             length_l: trainLengths_l[index],
             length_r: trainLengths_r[index],
+            norm_length_l: normalized_train_length_l[index],
+            norm_length_r: normalized_train_length_r[index],
             mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
 
 
@@ -236,7 +250,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
                            # found
     improvement_threshold = 0.995  # a relative improvement of this much is
                                    # considered significant
-    validation_frequency = min(n_train_batches/2, patience / 2)
+    validation_frequency = min(n_train_batches, patience / 2)
                                   # go through this many
                                   # minibatche before checking the network
                                   # on the validation set; in this case we
@@ -255,6 +269,8 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
         epoch = epoch + 1
         #for minibatch_index in xrange(n_train_batches): # each batch
         minibatch_index=0
+        #shuffle(train_batch_start)#shuffle training data
+        
         for batch_start in train_batch_start: 
             # iter means how many batches have been runed, taking into loop
             iter = (epoch - 1) * n_train_batches + minibatch_index +1
@@ -274,13 +290,14 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
                 error_sum=0
                 cost_tmp=0#reset for the next batch
                 #print layer3_input
+                #exit(0)
             #exit(0)
             if iter % n_train_batches == 0:
                 print 'training @ iter = '+str(iter)+' average cost: '+str(cost_average)+' error: '+str(error_sum)+'/'+str(update_freq)+' error rate: '+str(error_sum*1.0/update_freq)
             #if iter ==1:
             #    exit(0)
             
-            if iter % n_train_batches == 0:
+            if iter % validation_frequency == 0:
                 #write_file=open('log.txt', 'w')
                 test_losses=[]
                 for i in test_batch_start:
@@ -307,19 +324,15 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
                 print('\t\tepoch %i, minibatch %i/%i, validation error %f %%' % \
                       (epoch, minibatch_index , n_train_batches, \
                        this_validation_loss * 100.))
-
                 # if we got the best validation score until now
                 if this_validation_loss < best_validation_loss:
-
                     #improve patience if loss improvement is good enough
                     if this_validation_loss < best_validation_loss *  \
                        improvement_threshold:
                         patience = max(patience, iter * patience_increase)
-
                     # save best validation score and iteration number
                     best_validation_loss = this_validation_loss
                     best_iter = iter
-
                     # test it on the test set
                     test_losses = [test_model(i) for i in test_batch_start]
                     test_score = numpy.mean(test_losses)

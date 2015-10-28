@@ -193,7 +193,13 @@ def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=6
                 data.append(sent)
             #line_control+=1
         read_file.close()
-        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad)
+        #normalized lengths
+        arr=numpy.array(Lengths)
+        max=numpy.max(arr)
+        min=numpy.min(arr)
+        normalized_lengths=(arr-min)*1.0/(max-min)
+        #return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad)
+        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), normalized_lengths, numpy.array(leftPad),numpy.array(rightPad)
 
     def load_test_file(file, word2id):
         read_file=open(file, 'r')
@@ -231,11 +237,17 @@ def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=6
             #if line_control==1000:
             #    break
         read_file.close()
-        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad) 
+        #normalized lengths
+        arr=numpy.array(Lengths)
+        max=numpy.max(arr)
+        min=numpy.min(arr)
+        normalized_lengths=(arr-min)*1.0/(max-min)
+        #return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad) 
+        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), normalized_lengths, numpy.array(leftPad),numpy.array(rightPad) 
 
-    indices_train, trainY, trainLengths, trainLeftPad, trainRightPad=load_train_file(trainFile, vocab)
+    indices_train, trainY, trainLengths,normalized_trainLengths, trainLeftPad, trainRightPad=load_train_file(trainFile, vocab)
     print 'train file loaded over, total pairs: ', len(trainLengths)/2
-    indices_test, testY, testLengths, testLeftPad, testRightPad=load_test_file(testFile, vocab)
+    indices_test, testY, testLengths, normalized_testLengths, testLeftPad, testRightPad=load_test_file(testFile, vocab)
     print 'test file loaded over, total pairs: ', len(testLengths)/2
    
 
@@ -250,9 +262,11 @@ def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=6
 
     #indices_train=shared_dataset(indices_train)
     #indices_test=shared_dataset(indices_test)
+    train_set_Lengths=shared_dataset(trainLengths)
+    test_set_Lengths=shared_dataset(testLengths)
     
-    train_set_Lengths=shared_dataset(trainLengths)                             
-    test_set_Lengths = shared_dataset(testLengths)
+    normalized_train_length=theano.shared(numpy.asarray(normalized_trainLengths, dtype=theano.config.floatX),  borrow=True)                           
+    normalized_test_length = theano.shared(numpy.asarray(normalized_testLengths, dtype=theano.config.floatX),  borrow=True)       
     
     train_left_pad=shared_dataset(trainLeftPad)
     train_right_pad=shared_dataset(trainRightPad)
@@ -263,7 +277,7 @@ def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=6
     test_set_y = shared_dataset(testY)
     
 
-    rval = [(indices_train,train_set_y, train_set_Lengths, train_left_pad, train_right_pad), (indices_test, test_set_y, test_set_Lengths, test_left_pad, test_right_pad)]
+    rval = [(indices_train,train_set_y, train_set_Lengths, normalized_train_length, train_left_pad, train_right_pad), (indices_test, test_set_y, test_set_Lengths, normalized_test_length, test_left_pad, test_right_pad)]
     return rval, word_ind-1
 
 def load_mts(train_file, test_file):

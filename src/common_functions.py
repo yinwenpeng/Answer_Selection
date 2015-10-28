@@ -185,9 +185,10 @@ class Average_Pooling_for_batch1(object):
         simi_question=debug_print(T.sum(simi_tensor, axis=1).reshape((1, length_l)),'simi_question')
         simi_answer=debug_print(T.sum(simi_tensor, axis=0).reshape((1, length_r)), 'simi_answer')
         
-        weights_question =T.nnet.softmax(simi_question) 
-        weights_answer=T.nnet.softmax(simi_answer) 
-        
+        #weights_question =T.nnet.softmax(simi_question) 
+        #weights_answer=T.nnet.softmax(simi_answer) 
+        weights_question =simi_question
+        weights_answer=simi_answer        
         #concate=T.concatenate([weights_question, weights_answer], axis=1)
         #reshaped_concate=concate.reshape((input.shape[0], 1, 1, length_last_dim))
         
@@ -205,6 +206,8 @@ class Average_Pooling_for_batch1(object):
         dot_r=T.sum(input_r_matrix, axis=1)        
         '''
         self.output_eucli=debug_print(T.sqrt(T.sqr(dot_l-dot_r).sum()+1e-20).reshape((1,1)),'output_eucli')
+        self.output_simi=1.0/(1.0+self.output_eucli)
+        #self.output_simi=self.output_eucli
         
         
 
