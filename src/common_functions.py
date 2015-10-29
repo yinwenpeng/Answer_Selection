@@ -118,12 +118,9 @@ class Conv(object):
 class Average_Pooling(object):
     """The input is output of Conv: a tensor.  The output here should also be tensor"""
 
-    def __init__(self, rng, input, length_last_dim, kern):
+    def __init__(self, rng, input_l, input_r, kern, left_l, right_l, left_r, right_r, length_l, length_r, dim, window_size, maxSentLength): # length_l, length_r: valid lengths after conv
 
-        self.input = input
 
-        # there are "num input feature maps * filter height * filter width"
-        # inputs to each hidden unit
         fan_in = kern #kern numbers
         # each unit in the lower layer receives a gradient from:
         # "num output feature maps * filter height * filter width" /
@@ -136,22 +133,76 @@ class Average_Pooling(object):
             dtype=theano.config.floatX),
                                borrow=True) #a weight matrix kern*kern
         
-        #para_tensor=self.W.dimshuffle('x', 'x', 0, 1)
+        input_l_matrix=input_l.reshape((input_l.shape[2], input_l.shape[3]))
+        input_l_matrix=input_l_matrix[:, left_l:(input_l_matrix.shape[1]-right_l)]
+        input_r_matrix=input_r.reshape((input_r.shape[2], input_r.shape[3]))
+        input_r_matrix=input_r_matrix[:, left_r:(input_r_matrix.shape[1]-right_r)]
         
-        simi_tensor=compute_simi_feature(self.input, length_last_dim, self.W) #(input.shape[0]/2, input.shape[1], input.shape[3], input.shape[3])
-        simi_question=debug_print(T.sum(simi_tensor, axis=3).reshape((self.input.shape[0]/2, length_last_dim)),'simi_question')
-        simi_answer=debug_print(T.sum(simi_tensor, axis=2).reshape((self.input.shape[0]/2, length_last_dim)), 'simi_answer')
         
-        weights_question =T.nnet.softmax(simi_question) 
-        weights_answer=T.nnet.softmax(simi_answer) 
+        simi_tensor=compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length_r, self.W, dim) #(input.shape[0]/2, input.shape[1], input.shape[3], input.shape[3])
+        simi_question=debug_print(T.sum(simi_tensor, axis=1).reshape((1, length_l)),'simi_question')
+        simi_answer=debug_print(T.sum(simi_tensor, axis=0).reshape((1, length_r)), 'simi_answer')
         
-        concate=T.concatenate([weights_question, weights_answer], axis=1)
-        reshaped_concate=concate.reshape((input.shape[0], 1, 1, length_last_dim))
+        #weights_question =T.nnet.softmax(simi_question) 
+        #weights_answer=T.nnet.softmax(simi_answer) 
+        weights_question =simi_question
+        weights_answer=simi_answer        
+        #concate=T.concatenate([weights_question, weights_answer], axis=1)
+        #reshaped_concate=concate.reshape((input.shape[0], 1, 1, length_last_dim))
         
-        weight_tensor=T.repeat(reshaped_concate, kern, axis=2)
+        weights_question_matrix=T.repeat(weights_question, kern, axis=0)
+        weights_answer_matrix=T.repeat(weights_answer, kern, axis=0)
         
-        ele_dot=(self.input+1e-20)*weight_tensor # first add 1e-20 for each element to make non-zero input for weight gradient
-        self.output=T.sum(ele_dot, axis=3)
+        weighted_matrix_l=input_l_matrix*weights_question_matrix # first add 1e-20 for each element to make non-zero input for weight gradient
+        weighted_matrix_r=input_r_matrix*weights_answer_matrix
+
+        sub_tensor_list_l=[]
+        for i in range(window_size):
+            if i ==0:
+                sub_tensor_list_l.append(weighted_matrix_l.dimshuffle(('x', 0, 1)))
+            else:
+                sub_tensor_list_l.append(T.concatenate([weighted_matrix_l[:, i:], weighted_matrix_l[:, :i]], axis=1).dimshuffle(('x', 0, 1)))
+        sub_tensor_l=T.concatenate(sub_tensor_list_l, axis=0)
+        average_pooled_matrix_l=T.sum(sub_tensor_l, axis=0)[:, :1-window_size]
+        average_pooled_tensor_l=average_pooled_matrix_l.reshape((input_l.shape[0], input_l.shape[1], input_l.shape[2], length_l-window_size+1))
+        
+        #pad filter_size-1 zero embeddings at both sides
+        left_padding = T.zeros((input_l.shape[0], input_l.shape[1], input_l.shape[2], left_l), dtype=theano.config.floatX)
+        right_padding = T.zeros((input_l.shape[0], input_l.shape[1], input_l.shape[2], right_l), dtype=theano.config.floatX)
+        
+        self.output_tensor_l = T.concatenate([left_padding, average_pooled_tensor_l, right_padding], axis=3) 
+        
+
+        sub_tensor_list_r=[]
+        for i in range(window_size):
+            if i ==0:
+                sub_tensor_list_r.append(weighted_matrix_r.dimshuffle(('x', 0, 1)))
+            else:
+                sub_tensor_list_r.append(T.concatenate([weighted_matrix_r[:, i:], weighted_matrix_r[:, :i]], axis=1).dimshuffle(('x', 0, 1)))
+        sub_tensor_r=T.concatenate(sub_tensor_list_r, axis=0)
+        average_pooled_matrix_r=T.sum(sub_tensor_r, axis=0)[:, :1-window_size]        
+        average_pooled_tensor_r=average_pooled_matrix_r.reshape((input_r.shape[0], input_r.shape[1], input_r.shape[2], length_r-window_size+1))
+        #pad filter_size-1 zero embeddings at both sides
+        left_padding = T.zeros((input_r.shape[0], input_r.shape[1], input_r.shape[2], left_r), dtype=theano.config.floatX)
+        right_padding = T.zeros((input_r.shape[0], input_r.shape[1], input_r.shape[2], right_r), dtype=theano.config.floatX)
+        
+        self.output_tensor_r = T.concatenate([left_padding, average_pooled_tensor_r, right_padding], axis=3) 
+
+
+        dot_l=T.sum(weighted_matrix_l, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient
+        dot_r=T.sum(weighted_matrix_r, axis=1)        
+        self.output_concate_emb=T.concatenate([dot_l, dot_r], axis=0).reshape((1, kern*2))
+        #self.output_cosine=T.sum(dot_l*dot_r)/T.sqrt((dot_l**2).sum())/T.sqrt((dot_r**2).sum()).reshape((1,1))
+        
+        '''
+        dot_l=T.sum(input_l_matrix, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient
+        dot_r=T.sum(input_r_matrix, axis=1)        
+        '''
+        self.output_eucli=debug_print(T.sqrt(T.sqr(dot_l-dot_r).sum()+1e-20).reshape((1,1)),'output_eucli')
+        self.output_simi=1.0/(1.0+self.output_eucli)
+        #self.output_simi=self.output_eucli
+        
+        
 
         self.params = [self.W]
 
