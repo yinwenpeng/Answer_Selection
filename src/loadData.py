@@ -193,7 +193,7 @@ def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=6
                 data.append(sent)
             #line_control+=1
         read_file.close()
-        #normalized lengths
+        #normalized length
         arr=numpy.array(Lengths)
         max=numpy.max(arr)
         min=numpy.min(arr)

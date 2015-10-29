@@ -160,7 +160,6 @@ class Average_Pooling_for_batch1(object):
 
     def __init__(self, rng, input_l, input_r, kern, left_l, right_l, left_r, right_r, length_l, length_r, dim): # length_l, length_r: valid lengths after conv
 
-        #self.input = input
 
 
         fan_in = kern #kern numbers
