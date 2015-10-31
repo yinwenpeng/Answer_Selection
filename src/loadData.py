@@ -193,13 +193,15 @@ def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=6
                 data.append(sent)
             #line_control+=1
         read_file.close()
+        '''
         #normalized length
         arr=numpy.array(Lengths)
         max=numpy.max(arr)
         min=numpy.min(arr)
         normalized_lengths=(arr-min)*1.0/(max-min)
+        '''
         #return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad)
-        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), normalized_lengths, numpy.array(leftPad),numpy.array(rightPad)
+        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad)
 
     def load_test_file(file, word2id):
         read_file=open(file, 'r')
@@ -237,26 +239,34 @@ def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=6
             #if line_control==1000:
             #    break
         read_file.close()
+        '''
         #normalized lengths
         arr=numpy.array(Lengths)
         max=numpy.max(arr)
         min=numpy.min(arr)
         normalized_lengths=(arr-min)*1.0/(max-min)
+        '''
         #return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad) 
-        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), normalized_lengths, numpy.array(leftPad),numpy.array(rightPad) 
+        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad) 
 
-    indices_train, trainY, trainLengths,normalized_trainLengths, trainLeftPad, trainRightPad=load_train_file(trainFile, vocab)
+    indices_train, trainY, trainLengths, trainLeftPad, trainRightPad=load_train_file(trainFile, vocab)
     print 'train file loaded over, total pairs: ', len(trainLengths)/2
-    indices_test, testY, testLengths, normalized_testLengths, testLeftPad, testRightPad=load_test_file(testFile, vocab)
+    indices_test, testY, testLengths, testLeftPad, testRightPad=load_test_file(testFile, vocab)
     print 'test file loaded over, total pairs: ', len(testLengths)/2
-   
+    
+    #now, we need normaliza sentence length in the whole dataset (training and test)
+    concate_matrix=numpy.concatenate((trainLengths, testLengths), axis=0)
+    max=numpy.max(concate_matrix)
+    min=numpy.min(concate_matrix)    
+    normalized_trainLengths=(trainLengths-min)*1.0/(max-min)
+    normalized_testLengths=(testLengths-min)*1.0/(max-min)
 
     
     def shared_dataset(data_y, borrow=True):
         shared_y = theano.shared(numpy.asarray(data_y,
                                                dtype=theano.config.floatX),  # @UndefinedVariable
                                  borrow=borrow)
-        return T.cast(shared_y, 'int32')
+        return T.cast(shared_y, 'int64')
         #return shared_y
 
 

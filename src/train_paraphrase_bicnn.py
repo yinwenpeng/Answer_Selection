@@ -18,15 +18,20 @@ from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
 from loadData import load_msr_corpus, load_word2vec_to_init, load_mts
 from word2embeddings.nn.util import zero_value, random_value_normal
-from common_functions import Conv_with_input_para, Average_Pooling_for_batch1, create_conv_para
+from common_functions import Conv_with_input_para, Average_Pooling_for_Top, create_conv_para
 from random import shuffle
 
+from sklearn import svm
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.svm import LinearSVC
+
+from scipy import linalg, mat, dot
 
 
 
 def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.00005, update_freq=10):
+                    margin=0.5, L2_weight=0.00005, update_freq=100, norm_threshold=5.0):
 
     model_options = locals().copy()
     print "model options", model_options
@@ -71,10 +76,10 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     indices_train_r=theano.shared(numpy.asarray(indices_train_r, dtype=theano.config.floatX), borrow=True)
     indices_test_l=theano.shared(numpy.asarray(indices_test_l, dtype=theano.config.floatX), borrow=True)
     indices_test_r=theano.shared(numpy.asarray(indices_test_r, dtype=theano.config.floatX), borrow=True)
-    indices_train_l=T.cast(indices_train_l, 'int32')
-    indices_train_r=T.cast(indices_train_r, 'int32')
-    indices_test_l=T.cast(indices_test_l, 'int32')
-    indices_test_r=T.cast(indices_test_r, 'int32')
+    indices_train_l=T.cast(indices_train_l, 'int64')
+    indices_train_r=T.cast(indices_train_r, 'int64')
+    indices_test_l=T.cast(indices_test_l, 'int64')
+    indices_test_r=T.cast(indices_test_r, 'int64')
     
 
 
@@ -89,15 +94,15 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     
     # allocate symbolic variables for the data
     index = T.lscalar()
-    x_index_l = T.imatrix('x_index_l')   # now, x is the index matrix, must be integer
-    x_index_r = T.imatrix('x_index_r')
-    y = T.ivector('y')  
-    left_l=T.iscalar()
-    right_l=T.iscalar()
-    left_r=T.iscalar()
-    right_r=T.iscalar()
-    length_l=T.iscalar()
-    length_r=T.iscalar()
+    x_index_l = T.lmatrix('x_index_l')   # now, x is the index matrix, must be integer
+    x_index_r = T.lmatrix('x_index_r')
+    y = T.lvector('y')  
+    left_l=T.lscalar()
+    right_l=T.lscalar()
+    left_r=T.lscalar()
+    right_r=T.lscalar()
+    length_l=T.lscalar()
+    length_r=T.lscalar()
     norm_length_l=T.dscalar()
     norm_length_r=T.dscalar()
     mts=T.dmatrix()
@@ -131,23 +136,24 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     layer0_l_output=debug_print(layer0_l.output, 'layer0_l.output')
     layer0_r_output=debug_print(layer0_r.output, 'layer0_r.output')
     
-    layer1=Average_Pooling_for_batch1(rng, input_l=layer0_l_output, input_r=layer0_r_output, kern=nkerns[0],
+    layer1=Average_Pooling_for_Top(rng, input_l=layer0_l_output, input_r=layer0_r_output, kern=nkerns[0],
                                        left_l=left_l, right_l=right_l, left_r=left_r, right_r=right_r, 
                                        length_l=length_l+filter_size[1]-1, length_r=length_r+filter_size[1]-1,
                                        dim=maxSentLength+filter_size[1]-1)
     
-    layer1_out=debug_print(layer1.output_simi, 'layer1_out')
+
     
     
     #layer2=HiddenLayer(rng, input=layer1_out, n_in=nkerns[0]*2, n_out=hidden_size, activation=T.tanh)
     
     
     sum_uni_l=T.sum(layer0_l_input, axis=3).reshape((1, emb_size))
-    #norm_uni_l=sum_uni_l/T.sqrt((sum_uni_l**2).sum())
+    norm_uni_l=sum_uni_l/T.sqrt((sum_uni_l**2).sum())
     sum_uni_r=T.sum(layer0_r_input, axis=3).reshape((1, emb_size))
-    #norm_uni_r=sum_uni_r/T.sqrt((sum_uni_r**2).sum())
-    '''
+    norm_uni_r=sum_uni_r/T.sqrt((sum_uni_r**2).sum())
+    
     uni_cosine=cosine(sum_uni_l, sum_uni_r)
+    '''
     linear=Linear(sum_uni_l, sum_uni_r)
     poly=Poly(sum_uni_l, sum_uni_r)
     sigmoid=Sigmoid(sum_uni_l, sum_uni_r)
@@ -155,17 +161,25 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     gesd=GESD(sum_uni_l, sum_uni_r)
     '''
     eucli_1=1.0/(1.0+EUCLID(sum_uni_l, sum_uni_r))#25.2%
-    
     #eucli_1=EUCLID(sum_uni_l, sum_uni_r)
+    
     len_l=norm_length_l.reshape((1,1))
-    len_r=norm_length_r.reshape((1,1))    
+    len_r=norm_length_r.reshape((1,1))  
+    
+    '''
+    len_l=length_l.reshape((1,1))
+    len_r=length_r.reshape((1,1))  
+    '''
     #length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
     #length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
-    layer3_input=T.concatenate([mts, eucli_1,layer1_out,len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
+    layer3_input=T.concatenate([mts, 
+                                eucli_1, #uni_cosine, #norm_uni_l-(norm_uni_l+norm_uni_r)/2,
+                                layer1.output_eucli_to_simi, #layer1.output_cosine, #layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,
+                                len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=15+4, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=15+(2)+(2)+2, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()
@@ -174,7 +188,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     
 
     
-    test_model = theano.function([index], [layer3.errors(y), layer3.y_pred],
+    test_model = theano.function([index], [layer3.errors(y), layer3.y_pred, layer3_input, y],
           givens={
             x_index_l: indices_test_l[index: index + batch_size],
             x_index_r: indices_test_r[index: index + batch_size],
@@ -203,7 +217,11 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
 
     updates = []
     for param_i, grad_i, acc_i in zip(params, grads, accumulator):
-        grad_i=debug_print(grad_i,'grad_i')
+        #grad_i=debug_print(grad_i,'grad_i')
+        #norm=T.sqrt((grad_i**2).sum())
+        #if T.lt(norm_threshold, norm):
+        #    print 'big norm'
+        #    grad_i=grad_i*(norm_threshold/norm)
         acc = acc_i + T.sqr(grad_i)
         updates.append((param_i, param_i - learning_rate * grad_i / T.sqrt(acc)))   #AdaGrad
         updates.append((acc_i, acc))    
@@ -223,7 +241,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
             norm_length_r: normalized_train_length_r[index],
             mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
 
-    train_model_predict = theano.function([index], [cost_this,layer3.errors(y)],
+    train_model_predict = theano.function([index], [cost_this,layer3.errors(y), layer3_input, y , sum_uni_l, sum_uni_r, uni_cosine],
           givens={
             x_index_l: indices_train_l[index: index + batch_size],
             x_index_r: indices_train_r[index: index + batch_size],
@@ -264,6 +282,9 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
 
     epoch = 0
     done_looping = False
+    
+    svm_max=0.0
+    best_epoch=0
 
     while (epoch < n_epochs) and (not done_looping):
         epoch = epoch + 1
@@ -280,7 +301,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
             #    batch_start=batch_start+remain_train
             #time.sleep(0.5)
             if iter%update_freq != 0:
-                cost_ij, error_ij=train_model_predict(batch_start)
+                cost_ij, error_ij, layer3_input, y, sum_uni_l, sum_uni_r, uni_cosine=train_model_predict(batch_start)
                 #print 'cost_ij: ', cost_ij
                 cost_tmp+=cost_ij
                 error_sum+=error_ij
@@ -301,51 +322,56 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
                 #write_file=open('log.txt', 'w')
                 test_losses=[]
                 for i in test_batch_start:
-                    test_loss, pred_y=test_model(i)
+                    test_loss, pred_y, layer3_input, y=test_model(i)
                     #test_losses = [test_model(i) for i in test_batch_start]
                     test_losses.append(test_loss)
                     #write_file.write(str(pred_y[0])+'\n')#+'\t'+str(testY[i].eval())+
 
                 #write_file.close()
                 test_score = numpy.mean(test_losses)
-                print(('\t\t\t\t\t\tepoch %i, minibatch %i/%i, test error of best '
+                print(('\t\t\t\t\t\tepoch %i, minibatch %i/%i, test acc of best '
                            'model %f %%') %
                           (epoch, minibatch_index, n_train_batches,
-                           test_score * 100.))
-                '''
-                #print 'validating & testing...'
-                # compute zero-one loss on validation set
-                validation_losses = []
-                for i in dev_batch_start:
-                    time.sleep(0.5)
-                    validation_losses.append(validate_model(i))
-                #validation_losses = [validate_model(i) for i in dev_batch_start]
-                this_validation_loss = numpy.mean(validation_losses)
-                print('\t\tepoch %i, minibatch %i/%i, validation error %f %%' % \
-                      (epoch, minibatch_index , n_train_batches, \
-                       this_validation_loss * 100.))
-                # if we got the best validation score until now
-                if this_validation_loss < best_validation_loss:
-                    #improve patience if loss improvement is good enough
-                    if this_validation_loss < best_validation_loss *  \
-                       improvement_threshold:
-                        patience = max(patience, iter * patience_increase)
-                    # save best validation score and iteration number
-                    best_validation_loss = this_validation_loss
-                    best_iter = iter
-                    # test it on the test set
-                    test_losses = [test_model(i) for i in test_batch_start]
-                    test_score = numpy.mean(test_losses)
-                    print(('\t\t\t\tepoch %i, minibatch %i/%i, test error of best '
-                           'model %f %%') %
-                          (epoch, minibatch_index, n_train_batches,
-                           test_score * 100.))
-            '''
-
+                           (1-test_score) * 100.))
+                #now, see the results of svm
+                write_feature=open('feature_check.txt', 'w')
+                train_y=[]
+                train_features=[]
+                for batch_start in train_batch_start: 
+                    cost_ij, error_ij, layer3_input, y, sum_uni_l, sum_uni_r, uni_cosine=train_model_predict(batch_start)
+                    train_y.append(y[0])
+                    train_features.append(layer3_input[0])
+                    write_feature.write(' '.join(map(str,layer3_input[0]))+'\n')
+                write_feature.close()
+                test_y=[]
+                test_features=[]
+                for i in test_batch_start:
+                    test_loss, pred_y, layer3_input, y=test_model(i)
+                    test_y.append(y[0])
+                    test_features.append(layer3_input[0])
+                clf = svm.SVC(kernel='linear')#OneVsRestClassifier(LinearSVC()) #linear 76.11%, poly 75.19, sigmoid 66.50, rbf 73.33
+                clf.fit(train_features, train_y)
+                results=clf.predict(test_features)
+                corr_count=0
+                test_size=len(test_y)
+                for i in range(test_size):
+                    if results[i]==test_y[i]:
+                        corr_count+=1
+                acc=corr_count*1.0/test_size
+                if acc > svm_max:
+                    svm_max=acc
+                    best_epoch=epoch
+                print '\t\t\t\t\t\t\t\t\t\t\tsvm acc: ', acc, ' max svm: ',    svm_max , ' at epoch: ', best_epoch     
+                #exit(0)
             if patience <= iter:
                 done_looping = True
                 break
-
+        #after each epoch, increase the batch_size
+        if epoch%2==1:
+            update_freq=update_freq*1
+        else:
+            update_freq=update_freq/1
+        #print 'Batch_size: ', update_freq
     end_time = time.clock()
     print('Optimization complete.')
     print('Best validation score of %f %% obtained at iteration %i,'\
@@ -357,12 +383,15 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
 
 
 def cosine(vec1, vec2):
+    vec1=debug_print(vec1, 'vec1')
+    vec2=debug_print(vec2, 'vec2')
     norm_uni_l=T.sqrt((vec1**2).sum())
     norm_uni_r=T.sqrt((vec2**2).sum())
     
     dot=T.dot(vec1,vec2.T)
     
-    return (dot/(norm_uni_l*norm_uni_r)).reshape((1,1))    
+    simi=debug_print(dot/(norm_uni_l*norm_uni_r), 'uni-cosine')
+    return simi.reshape((1,1))    
 def Linear(sum_uni_l, sum_uni_r):
     return (T.dot(sum_uni_l,sum_uni_r.T)).reshape((1,1))    
 def Poly(sum_uni_l, sum_uni_r):

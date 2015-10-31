@@ -191,22 +191,27 @@ class Average_Pooling(object):
 
         dot_l=T.sum(weighted_matrix_l, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient
         dot_r=T.sum(weighted_matrix_r, axis=1)        
-        self.output_concate_emb=T.concatenate([dot_l, dot_r], axis=0).reshape((1, kern*2))
-        #self.output_cosine=T.sum(dot_l*dot_r)/T.sqrt((dot_l**2).sum())/T.sqrt((dot_r**2).sum()).reshape((1,1))
+        norm_l=T.sqrt((dot_l**2).sum())
+        norm_r=T.sqrt((dot_r**2).sum())
+        
+        self.output_vector_l=(dot_l/norm_l).reshape((1, kern))
+        self.output_vector_r=(dot_r/norm_r).reshape((1, kern))      
+        self.output_concate=T.concatenate([dot_l, dot_r], axis=0).reshape((1, kern*2))
+        self.output_cosine=(T.sum(dot_l*dot_r)/norm_l/norm_r).reshape((1,1))
         
         '''
         dot_l=T.sum(input_l_matrix, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient
         dot_r=T.sum(input_r_matrix, axis=1)        
         '''
         self.output_eucli=debug_print(T.sqrt(T.sqr(dot_l-dot_r).sum()+1e-20).reshape((1,1)),'output_eucli')
-        self.output_simi=1.0/(1.0+self.output_eucli)
+        self.output_eucli_to_simi=1.0/(1.0+self.output_eucli)
         #self.output_simi=self.output_eucli
         
         
 
         self.params = [self.W]
 
-class Average_Pooling_for_batch1(object):
+class Average_Pooling_for_Top(object):
     """The input is output of Conv: a tensor.  The output here should also be tensor"""
 
     def __init__(self, rng, input_l, input_r, kern, left_l, right_l, left_r, right_r, length_l, length_r, dim): # length_l, length_r: valid lengths after conv
@@ -246,17 +251,21 @@ class Average_Pooling_for_batch1(object):
         weights_answer_matrix=T.repeat(weights_answer, kern, axis=0)
         
         dot_l=T.sum(input_l_matrix*weights_question_matrix, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient
-        dot_r=T.sum(input_r_matrix*weights_answer_matrix, axis=1)
+        dot_r=T.sum(input_r_matrix*weights_answer_matrix, axis=1)      
+        norm_l=T.sqrt((dot_l**2).sum())
+        norm_r=T.sqrt((dot_r**2).sum())
         
-        self.output=T.concatenate([dot_l, dot_r], axis=0).reshape((1, kern*2))
-        #self.output_cosine=T.sum(dot_l*dot_r)/T.sqrt((dot_l**2).sum())/T.sqrt((dot_r**2).sum()).reshape((1,1))
+        self.output_vector_l=(dot_l/norm_l).reshape((1, kern))
+        self.output_vector_r=(dot_r/norm_r).reshape((1, kern))      
+        self.output_concate=T.concatenate([dot_l, dot_r], axis=0).reshape((1, kern*2))
+        self.output_cosine=(T.sum(dot_l*dot_r)/norm_l/norm_r).reshape((1,1))
         
         '''
         dot_l=T.sum(input_l_matrix, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient
         dot_r=T.sum(input_r_matrix, axis=1)        
         '''
         self.output_eucli=debug_print(T.sqrt(T.sqr(dot_l-dot_r).sum()+1e-20).reshape((1,1)),'output_eucli')
-        self.output_simi=1.0/(1.0+self.output_eucli)
+        self.output_eucli_to_simi=1.0/(1.0+self.output_eucli)
         #self.output_simi=self.output_eucli
         
         
