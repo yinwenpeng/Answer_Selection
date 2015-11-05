@@ -1,6 +1,6 @@
 import numpy
 from itertools import izip
-
+from xml.sax.saxutils import escape
 
 def filter_dev_test(devFile, testFile):
     #remove questions that have no answers
@@ -209,15 +209,108 @@ def compute_map_mrr(file, probs):
     MRR=all_mrr/all_corr_answer
     '''
               
+def reform_for_bleu_nist(trainFile):#not useful
+    #first src file
+    read_train=open(trainFile, 'r')
+    write_src=open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/train_src.xml', 'w')
+    write_src.write('<mteval>'+'\n'+'<srcset setid="WMT08" srclang="Czech">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+    id=1
+    for line in read_train:
+        parts=line.strip().split('\t')
+        write_src.write('<p>'+'\n'+'<seg id="'+str(id)+'">'+' '+escape(parts[0])+' </seg>\n</p>\n')
+        id+=1
+    write_src.write('</doc>\n</srcset>\n</mteval>\n')
+    write_src.close()
+    read_train.close()
+    #second, ref
+    read_train=open(trainFile, 'r')
+    write_ref=open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/train_ref.xml', 'w')
+    write_ref.write('<mteval>'+'\n'+'<refset setid="WMT08" srclang="Czech" trglang="English" refid="reference01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+    id=1
+    for line in read_train:
+        parts=line.strip().split('\t')
+        write_ref.write('<p>'+'\n'+'<seg id="'+str(id)+'">'+' '+escape(parts[0])+' </seg>\n</p>\n')
+        id+=1
+    write_ref.write('</doc>\n</refset>\n</mteval>\n')
+    write_ref.close()
+    read_train.close()     
+    #third, sys
+    read_train=open(trainFile, 'r')
+    write_sys=open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/train_sys.xml', 'w')
+    write_sys.write('<mteval>'+'\n'+'<tstset setid="WMT08" srclang="Czech" trglang="English" sysid="system01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+    id=1
+    for line in read_train:
+        parts=line.strip().split('\t')
+        write_sys.write('<p>'+'\n'+'<seg id="'+str(id)+'">'+' '+escape(parts[1])+' </seg>\n</p>\n')
+        id+=1
+    write_sys.write('</doc>\n</tstset>\n</mteval>\n')
+    write_sys.close()
+    read_train.close()        
         
+def putAllMtTogether():
+    pathroot='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST'
+    train_files=[pathroot+'/result_train/BLEU1-seg.scr',
+                 pathroot+'/result_train/BLEU2-seg.scr',pathroot+'/result_train/BLEU3-seg.scr',
+                 pathroot+'/result_train/BLEU4-seg.scr',
+                 pathroot+'/result_train/NIST1-seg.scr',pathroot+'/result_train/NIST2-seg.scr',
+                 pathroot+'/result_train/NIST3-seg.scr',pathroot+'/result_train/NIST4-seg.scr',
+                 pathroot+'/result_train/NIST5-seg.scr']
+    
+    test_files=[pathroot+'/result_test/BLEU1-seg.scr',
+                pathroot+'/result_test/BLEU2-seg.scr',pathroot+'/result_test/BLEU3-seg.scr',
+                pathroot+'/result_test/BLEU4-seg.scr',
+                 pathroot+'/result_test/NIST1-seg.scr',pathroot+'/result_test/NIST2-seg.scr',
+                 pathroot+'/result_test/NIST3-seg.scr',pathroot+'/result_test/NIST4-seg.scr',
+                 pathroot+'/result_test/NIST5-seg.scr',
+                  pathroot+'maxsim-v1.01/paraphrase/test.score']
+
+    posi=[4, 4,4,4,4,  4,4,4,4]
+    
+    train_write=open(pathroot+'/result_train/concate_9mt_train.txt', 'w')
+    scores=[]
+    for i in range(9):
+        read_file=open(train_files[i], 'r')
+        list_values=[]
+        for line in read_file:
+            tokens=line.strip().split()
+            list_values.append(tokens[posi[i]])
+        read_file.close()
+        scores.append(list_values)
+    values_matrix=numpy.array(scores)
+    col=values_matrix.shape[1]
+    for j in range(col):
+        for i in range(9):
+            train_write.write(values_matrix[i,j]+'\t')
+        train_write.write('\n')
+    train_write.close()
+    #test
+    test_write=open(pathroot+'/result_test/concate_9mt_test.txt', 'w')
+    scores=[]
+    for i in range(9):
+        read_file=open(test_files[i], 'r')
+        list_values=[]
+        for line in read_file:
+            tokens=line.strip().split()
+            list_values.append(tokens[posi[i]])
+        read_file.close()
+        scores.append(list_values)
+    values_matrix=numpy.array(scores)
+    col=values_matrix.shape[1]
+    for j in range(col):
+        for i in range(9):
+            test_write.write(values_matrix[i,j]+'\t')
+        test_write.write('\n')
+    test_write.close()
+    print 'finished'            
     
     
 if __name__ == '__main__':
     path='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/'
     #filter_dev_test(path+'WikiQA-dev.txt', path+'WikiQA-test.txt')
     #Extract_Vocab(path, 'WikiQA-train.txt', 'dev_filtered.txt', 'test_filtered.txt')
-    transcate_word2vec_into_wikiQA_vocab(path)
+    #transcate_word2vec_into_wikiQA_vocab(path)
     #compute_map_mrr(path+'test_filtered.txt')
-
+    #reform_for_bleu_nist(path+'WikiQA-train.txt')
+    putAllMtTogether()
 
 
