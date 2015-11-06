@@ -230,10 +230,10 @@ class Average_Pooling_for_Top(object):
             dtype=theano.config.floatX),
                                borrow=True) #a weight matrix kern*kern
         
-        input_l_matrix=input_l.reshape((input_l.shape[2], input_l.shape[3]))
-        input_l_matrix=input_l_matrix[:, left_l:(input_l_matrix.shape[1]-right_l)]
-        input_r_matrix=input_r.reshape((input_r.shape[2], input_r.shape[3]))
-        input_r_matrix=input_r_matrix[:, left_r:(input_r_matrix.shape[1]-right_r)]
+        input_l_matrix=debug_print(input_l.reshape((input_l.shape[2], input_l.shape[3])), 'origin_input_l_matrix')
+        input_l_matrix=debug_print(input_l_matrix[:, left_l:(input_l_matrix.shape[1]-right_l)],'input_l_matrix')
+        input_r_matrix=debug_print(input_r.reshape((input_r.shape[2], input_r.shape[3])),'origin_input_r_matrix')
+        input_r_matrix=debug_print(input_r_matrix[:, left_r:(input_r_matrix.shape[1]-right_r)],'input_r_matrix')
         
         
         simi_tensor=compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length_r, self.W, dim) #(input.shape[0]/2, input.shape[1], input.shape[3], input.shape[3])
@@ -250,15 +250,15 @@ class Average_Pooling_for_Top(object):
         weights_question_matrix=T.repeat(weights_question, kern, axis=0)
         weights_answer_matrix=T.repeat(weights_answer, kern, axis=0)
         
-        dot_l=T.sum(input_l_matrix*weights_question_matrix, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient
-        dot_r=T.sum(input_r_matrix*weights_answer_matrix, axis=1)      
-        norm_l=T.sqrt((dot_l**2).sum())
-        norm_r=T.sqrt((dot_r**2).sum())
+        dot_l=debug_print(T.sum(input_l_matrix*weights_question_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
+        dot_r=debug_print(T.sum(input_r_matrix*weights_answer_matrix, axis=1),'dot_r')      
+        norm_l=debug_print(T.sqrt((dot_l**2).sum()),'norm_l')
+        norm_r=debug_print(T.sqrt((dot_r**2).sum()), 'norm_r')
         
-        self.output_vector_l=(dot_l/norm_l).reshape((1, kern))
-        self.output_vector_r=(dot_r/norm_r).reshape((1, kern))      
+        self.output_vector_l=debug_print((dot_l/norm_l).reshape((1, kern)),'output_vector_l')
+        self.output_vector_r=debug_print((dot_r/norm_r).reshape((1, kern)), 'output_vector_r')      
         self.output_concate=T.concatenate([dot_l, dot_r], axis=0).reshape((1, kern*2))
-        self.output_cosine=(T.sum(dot_l*dot_r)/norm_l/norm_r).reshape((1,1))
+        self.output_cosine=debug_print((T.sum(dot_l*dot_r)/norm_l/norm_r).reshape((1,1)),'output_cosine')
         
         '''
         dot_l=T.sum(input_l_matrix, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient

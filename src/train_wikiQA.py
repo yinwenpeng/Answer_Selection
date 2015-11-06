@@ -9,6 +9,7 @@ import numpy
 import theano
 import theano.tensor as T
 import theano.sandbox.neighbours as TSN
+import time
 
 from logistic_sgd import LogisticRegression
 from mlp import HiddenLayer
@@ -35,17 +36,23 @@ from preprocess_wikiQA import compute_map_mrr
 1) true sentence lengths
 2) unnormalized sentence length
 3) use bleu and nist scores
+4) tune word embeddings
+5) translation bettween
+6) max sentence length to 40
+
+Doesnt work:
+lr0.08, kern30, window=5, update10
 '''
 
 def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
-                    maxSentLength=62, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.0001, update_freq=1, norm_threshold=5.0):
-
+                    maxSentLength=64, emb_size=300, hidden_size=200,
+                    margin=0.5, L2_weight=0.0001, update_freq=1, norm_threshold=5.0, max_truncate=40):
+    maxSentLength=max_truncate+2*(window_width-1)
     model_options = locals().copy()
     print "model options", model_options
     rootPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/';
     rng = numpy.random.RandomState(23455)
-    datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
+    datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', max_truncate,maxSentLength)#vocab_size contain train, dev and test
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
     mt_train, mt_test=load_mts_wikiQA(mtPath+'result_train/concate_9mt_train.txt', mtPath+'result_test/concate_9mt_test.txt')
@@ -93,7 +100,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
 
 
     rand_values=random_value_normal((vocab_size+1, emb_size), theano.config.floatX, numpy.random.RandomState(1234))
-    rand_values[0]=numpy.array(numpy.zeros(emb_size))
+    rand_values[0]=numpy.array(numpy.zeros(emb_size),dtype=theano.config.floatX)
     #rand_values[0]=numpy.array([1e-50]*emb_size)
     rand_values=load_word2vec_to_init(rand_values, rootPath+'vocab_embs_300d.txt')
     #rand_values=load_word2vec_to_init(rand_values, rootPath+'vocab_lower_in_word2vec_embs_300d.txt')
@@ -145,6 +152,8 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]), W=conv_W, b=conv_b)
     layer0_l_output=debug_print(layer0_l.output, 'layer0_l.output')
     layer0_r_output=debug_print(layer0_r.output, 'layer0_r.output')
+    
+
     
     layer1=Average_Pooling_for_Top(rng, input_l=layer0_l_output, input_r=layer0_r_output, kern=nkerns[0],
                                        left_l=left_l, right_l=right_l, left_r=left_r, right_r=right_r, 
@@ -230,11 +239,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
 
     updates = []
     for param_i, grad_i, acc_i in zip(params, grads, accumulator):
-        #grad_i=debug_print(grad_i,'grad_i')
-        #norm=T.sqrt((grad_i**2).sum())
-        #if T.lt(norm_threshold, norm):
-        #    print 'big norm'
-        #    grad_i=grad_i*(norm_threshold/norm)
+        grad_i=debug_print(grad_i,'grad_i')
         acc = acc_i + T.sqr(grad_i)
         updates.append((param_i, param_i - learning_rate * grad_i / T.sqrt(acc)))   #AdaGrad
         updates.append((acc_i, acc))    
@@ -254,7 +259,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             norm_length_r: normalized_train_length_r[index],
             mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
 
-    train_model_predict = theano.function([index], [cost_this,layer3.errors(y), layer3_input, y],
+    train_model_predict = theano.function([index], [cost_this,layer3.errors(y), layer3_input, y, layer1.output_vector_l, layer1.output_vector_r, layer1.output_cosine],
           givens={
             x_index_l: indices_train_l[index: index + batch_size],
             x_index_r: indices_train_r[index: index + batch_size],
@@ -314,7 +319,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             #    batch_start=batch_start+remain_train
             #time.sleep(0.5)
             if iter%update_freq != 0:
-                cost_ij, error_ij, layer3_input, y=train_model_predict(batch_start)
+                cost_ij, error_ij, layer3_input, y, sum_uni_l, sum_uni_r, uni_cosine=train_model_predict(batch_start)
                 #print 'layer3_input', layer3_input
                 cost_tmp+=cost_ij
                 error_sum+=error_ij
@@ -349,24 +354,20 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
                            'model %f, MRR  %f') %
                           (epoch, minibatch_index, n_train_batches,MAP, MRR))
                 #now, see the results of LR
-                #write_feature=open('feature_check.txt', 'w')
+                #write_feature=open(rootPath+'feature_check.txt', 'w')
                 train_y=[]
                 train_features=[]
+                count=0
                 for batch_start in train_batch_start: 
-                    cost_ij, error_ij, layer3_input, y=train_model_predict(batch_start)
+                    cost_ij, error_ij, layer3_input, y, sum_uni_l, sum_uni_r, uni_cosine=train_model_predict(batch_start)
                     train_y.append(y[0])
                     train_features.append(layer3_input[0])
-                    #write_feature.write(' '.join(map(str,layer3_input[0]))+'\n')
+                    #write_feature.write(str(batch_start)+' '+' '.join(map(str,layer3_input[0]))+'\n')
+                    #count+=1
+
                 #write_feature.close()
-                '''
-                test_y=[]
-                test_features=[]
-                for i in test_batch_start:
-                    prob_i, layer3_input, y=test_model(i)
-                    test_y.append(y[0])
-                    test_features.append(layer3_input[0])
-                '''
-                clf = svm.SVC(kernel='linear')#OneVsRestClassifier(LinearSVC()) #linear 76.11%, poly 75.19, sigmoid 66.50, rbf 73.33
+
+                clf = svm.SVC(C=1.0, kernel='linear')
                 clf.fit(train_features, train_y)
                 results_svm=clf.decision_function(test_features)
                 MAP_svm, MRR_svm=compute_map_mrr(rootPath+'test_filtered.txt', results_svm)

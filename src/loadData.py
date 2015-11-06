@@ -328,7 +328,7 @@ def load_mts_wikiQA(train_file, test_file):
     
     return train_values, test_values
 
-def load_wikiQA_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=45
+def load_wikiQA_corpus(vocabFile, trainFile, testFile, max_truncate,maxlength): #maxSentLength=45
     #first load word vocab
     read_vocab=open(vocabFile, 'r')
     vocab={}
@@ -362,7 +362,7 @@ def load_wikiQA_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLengt
                     if id is not None:
                         sent.append(id)
                         length+=1
-                        if length==maxlength-2: #we consider max 43 words
+                        if length==max_truncate: #we consider max 43 words
                             break
                 if length==0:
                     #print 'shit sentence: ', tokens[i]
@@ -376,7 +376,9 @@ def load_wikiQA_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLengt
  
                 sent=[0]*left+sent+[0]*right
                 data.append(sent)
-            #line_control+=1
+            line_control+=1
+            #if line_control==15:
+            #    break
         read_file.close()
         '''
         #normalized length
@@ -411,7 +413,7 @@ def load_wikiQA_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLengt
                     if id is not None:
                         sent.append(id)
                         length+=1
-                        if length==maxlength-2: #we consider max 43 words
+                        if length==max_truncate: #we consider max 43 words
                             break
                 if length==0:
                     #print 'shit sentence: ', tokens[i]
