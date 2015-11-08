@@ -302,7 +302,67 @@ def putAllMtTogether():
         test_write.write('\n')
     test_write.close()
     print 'finished'            
+
+def two_word_matching_methods(path, trainfile, testfile):
+    stop_word_list=open(path+'stop_words.txt', 'r')
+    stop_words=set()
+    '''
+    for line in stop_word_list:
+        if len(line)>0:#not empty
+            word=line.strip()
+            stop_words.add(word)
+    '''
+    stop_word_list.close()
+    print 'totally ', len(stop_words), ' stop words'
+    #word 2 idf
+    word2idf={}
+    for file in [trainfile, testfile]:
+        read_file=open(path+file, 'r')
+        for line in read_file:
+            parts=line.strip().split('\t')
+            for i in [0,1]:
+                sent2set=set(parts[i].split())# do not consider repetition
+                for word in sent2set:
+                    if word not in stop_words:
+                        count=word2idf.get(word,0)
+                        word2idf[word]=count+1
+        read_file.close()
+        
+        
+    #train file
+    read_train=open(path+trainfile, 'r')
+    write_train=open(path+'train_word_matching_scores.txt','w')
+    for line in read_train:
+        parts=line.strip().split('\t')
+        WC=0
+        WWC=0
+        question=parts[0].split()
+        answer=parts[1].split()
+        for word in question:
+            if word not in stop_words and word in answer:
+                WC+=1
+                WWC+=1.0/word2idf.get(word)
+        write_train.write(str(WC)+' '+str(WWC)+'\n')
+    write_train.close()
+    read_train.close()
     
+    #test file
+    read_test=open(path+testfile, 'r')
+    write_test=open(path+'test_word_matching_scores.txt','w')
+    for line in read_test:
+        parts=line.strip().split('\t')
+        WC=0
+        WWC=0
+        question=parts[0].split()
+        answer=parts[1].split()
+        for word in question:
+            if word not in stop_words and word in answer:
+                WC+=1
+                WWC+=1.0/word2idf.get(word)
+        write_test.write(str(WC)+' '+str(WWC)+'\n')
+    write_test.close()
+    read_test.close()             
+    print 'two word matching values generated' 
     
 if __name__ == '__main__':
     path='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/'
@@ -311,6 +371,7 @@ if __name__ == '__main__':
     #transcate_word2vec_into_wikiQA_vocab(path)
     #compute_map_mrr(path+'test_filtered.txt')
     #reform_for_bleu_nist(path+'WikiQA-train.txt')
-    putAllMtTogether()
+    #putAllMtTogether()
+    two_word_matching_methods(path, 'WikiQA-train.txt', 'test_filtered.txt')
 
 

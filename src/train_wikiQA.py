@@ -17,7 +17,7 @@ from WPDefined import ConvFoldPoolLayer, dropout_from_layer, shared_dataset, rep
 from cis.deep.utils.theano import debug_print
 from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
-from loadData import load_wikiQA_corpus, load_word2vec_to_init, load_mts_wikiQA
+from loadData import load_wikiQA_corpus, load_word2vec_to_init, load_mts_wikiQA, load_wmf_wikiQA
 from word2embeddings.nn.util import zero_value, random_value_normal
 from common_functions import Conv_with_input_para, Average_Pooling_for_Top, create_conv_para
 from random import shuffle
@@ -33,20 +33,28 @@ from preprocess_wikiQA import compute_map_mrr
 
 #need to change
 '''
-1) true sentence lengths
-2) unnormalized sentence length
-3) use bleu and nist scores
-4) tune word embeddings
+
+
+4) fine-tune word embeddings
 5) translation bettween
-6) max sentence length to 40
+6) max sentence length to 40:   good
+7) implement attention by euclid, not cosine
+8) euclid uses 1/exp(x)
+
+
 
 Doesnt work:
-lr0.08, kern30, window=5, update10
+1) lr0.08, kern30, window=5, update10
+8) kern as Yu's paper
+7) shuffle training data: should influence little as batch size is 1
+3) use bleu and nist scores
+1) true sentence lengths
+2) unnormalized sentence length
 '''
 
 def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=64, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.0001, update_freq=1, norm_threshold=5.0, max_truncate=40):
+                    margin=0.5, L2_weight=0.0001, update_freq=1, norm_threshold=5.0, max_truncate=60):
     maxSentLength=max_truncate+2*(window_width-1)
     model_options = locals().copy()
     print "model options", model_options
@@ -56,6 +64,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
     mt_train, mt_test=load_mts_wikiQA(mtPath+'result_train/concate_9mt_train.txt', mtPath+'result_test/concate_9mt_test.txt')
+    wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
     indices_train_l=indices_train[::2,:]
     indices_train_r=indices_train[1::2,:]
@@ -123,6 +132,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     norm_length_l=T.dscalar()
     norm_length_r=T.dscalar()
     mts=T.dmatrix()
+    wmf=T.dmatrix()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
     ishape = (emb_size, maxSentLength)  # this is the size of MNIST images
     filter_size=(emb_size,window_width)
@@ -175,6 +185,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     
     uni_cosine=cosine(sum_uni_l, sum_uni_r)
     aver_uni_cosine=cosine(aver_uni_l, aver_uni_r)
+    uni_sigmoid_simi=debug_print(T.nnet.sigmoid(T.dot(norm_uni_l, norm_uni_r.T)).reshape((1,1)),'uni_sigmoid_simi')    
     '''
     linear=Linear(sum_uni_l, sum_uni_r)
     poly=Poly(sum_uni_l, sum_uni_r)
@@ -183,7 +194,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     gesd=GESD(sum_uni_l, sum_uni_r)
     '''
     eucli_1=1.0/(1.0+EUCLID(sum_uni_l, sum_uni_r))#25.2%
-    #eucli_1=EUCLID(sum_uni_l, sum_uni_r)
+    #eucli_1_exp=1.0/T.exp(EUCLID(sum_uni_l, sum_uni_r))
     
     len_l=norm_length_l.reshape((1,1))
     len_r=norm_length_r.reshape((1,1))  
@@ -196,15 +207,16 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     #length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
     layer3_input=T.concatenate([#mts,
-                                uni_cosine, #norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
-                                layer1.output_cosine, #layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,#layer1.output_cosine, #
-                                len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
+                                uni_cosine,#eucli_1_exp,#uni_sigmoid_simi,  #norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
+                                layer1.output_cosine,  #layer1.output_eucli_to_simi_exp,#layer1.output_sigmoid_simi,#layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,#layer1.output_cosine, #
+                                len_l, len_r#wmf
+                                ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
     layer3=LogisticRegression(rng, input=layer3_input, n_in=(1)+(1)+2, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
-    L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()
+    L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()++(embeddings**2).sum()
     cost_this =debug_print(layer3.negative_log_likelihood(y), 'cost_this')#+L2_weight*L2_reg
     cost=debug_print((cost_this+cost_tmp)/update_freq+L2_weight*L2_reg, 'cost')
     
@@ -223,11 +235,12 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             length_r: testLengths_r[index],
             norm_length_l: normalized_test_length_l[index],
             norm_length_r: normalized_test_length_r[index],
-            mts: mt_test[index: index + batch_size]}, on_unused_input='ignore')
+            mts: mt_test[index: index + batch_size],
+            wmf: wm_test[index: index + batch_size]}, on_unused_input='ignore')
 
 
     #params = layer3.params + layer2.params + layer1.params+ [conv_W, conv_b]
-    params = layer3.params+ [conv_W, conv_b]# + layer1.params 
+    params = layer3.params+ [conv_W, conv_b]#+[embeddings]# + layer1.params 
     
     accumulator=[]
     for para_i in params:
@@ -257,7 +270,8 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
             norm_length_r: normalized_train_length_r[index],
-            mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
+            mts: mt_train[index: index + batch_size],
+            wmf: wm_train[index: index + batch_size]}, on_unused_input='ignore')
 
     train_model_predict = theano.function([index], [cost_this,layer3.errors(y), layer3_input, y, layer1.output_vector_l, layer1.output_vector_r, layer1.output_cosine],
           givens={
@@ -272,7 +286,8 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
             norm_length_r: normalized_train_length_r[index],
-            mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
+            mts: mt_train[index: index + batch_size],
+            wmf: wm_train[index: index + batch_size]}, on_unused_input='ignore')
 
 
 
@@ -318,6 +333,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             #if epoch %2 ==0:
             #    batch_start=batch_start+remain_train
             #time.sleep(0.5)
+            #print batch_start
             if iter%update_freq != 0:
                 cost_ij, error_ij, layer3_input, y, sum_uni_l, sum_uni_r, uni_cosine=train_model_predict(batch_start)
                 #print 'layer3_input', layer3_input

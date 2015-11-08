@@ -259,14 +259,11 @@ class Average_Pooling_for_Top(object):
         self.output_vector_r=debug_print((dot_r/norm_r).reshape((1, kern)), 'output_vector_r')      
         self.output_concate=T.concatenate([dot_l, dot_r], axis=0).reshape((1, kern*2))
         self.output_cosine=debug_print((T.sum(dot_l*dot_r)/norm_l/norm_r).reshape((1,1)),'output_cosine')
-        
-        '''
-        dot_l=T.sum(input_l_matrix, axis=1) # first add 1e-20 for each element to make non-zero input for weight gradient
-        dot_r=T.sum(input_r_matrix, axis=1)        
-        '''
+
         self.output_eucli=debug_print(T.sqrt(T.sqr(dot_l-dot_r).sum()+1e-20).reshape((1,1)),'output_eucli')
         self.output_eucli_to_simi=1.0/(1.0+self.output_eucli)
-        #self.output_simi=self.output_eucli
+        #self.output_eucli_to_simi_exp=1.0/T.exp(self.output_eucli) # not good
+        self.output_sigmoid_simi=debug_print(T.nnet.sigmoid(T.dot(dot_l/norm_l, (dot_r/norm_r).T)).reshape((1,1)),'output_sigmoid_simi')    
         
         
 
@@ -278,6 +275,7 @@ def compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length
 
     repeated_1=debug_print(T.repeat(input_l_matrix, dim, axis=1)[:, : (length_l*length_r)],'repeated_1') # add 10 because max_sent_length is only input for conv, conv will make size bigger
     repeated_2=debug_print(repeat_whole_tensor(matrix_r_after_translate, dim, False)[:, : (length_l*length_r)],'repeated_2')
+    '''
     #repeated_2=T.repeat(even_tensor, even_tensor.shape[3], axis=2).reshape((tensor.shape[0]/2, tensor.shape[1], tensor.shape[2], tensor.shape[3]**2))    
     length_1=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_1), axis=0)),'length_1')
     length_2=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_2), axis=0)), 'length_2')
@@ -287,6 +285,13 @@ def compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length
     
     list_of_simi= debug_print(sum_multi/(length_1*length_2),'list_of_simi')   #to get rid of zero length
     simi_matrix=debug_print(list_of_simi.reshape((length_l, length_r)), 'simi_matrix')
+    '''
+    
+    #euclid
+    gap=debug_print(repeated_1-repeated_2, 'gap')
+    eucli=debug_print(T.sqrt(1e-10+T.sum(T.sqr(gap), axis=0)),'eucli')
+    #simi_matrix=debug_print((1.0/(1.0+eucli)).reshape((length_l, length_r)), 'simi_matrix')
+    simi_matrix=debug_print((1.0/T.exp(eucli)).reshape((length_l, length_r)), 'simi_matrix')
     
     return simi_matrix#[:length_l, :length_r]
 
