@@ -290,8 +290,7 @@ def compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length
     #euclid
     gap=debug_print(repeated_1-repeated_2, 'gap')
     eucli=debug_print(T.sqrt(1e-10+T.sum(T.sqr(gap), axis=0)),'eucli')
-    #simi_matrix=debug_print((1.0/(1.0+eucli)).reshape((length_l, length_r)), 'simi_matrix')
-    simi_matrix=debug_print((1.0/T.exp(eucli)).reshape((length_l, length_r)), 'simi_matrix')
+    simi_matrix=debug_print((1.0/(1.0+eucli)).reshape((length_l, length_r)), 'simi_matrix')
     
     return simi_matrix#[:length_l, :length_r]
 

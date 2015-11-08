@@ -38,8 +38,9 @@ from preprocess_wikiQA import compute_map_mrr
 4) fine-tune word embeddings
 5) translation bettween
 6) max sentence length to 40:   good
-7) implement attention by euclid, not cosine
-8) euclid uses 1/exp(x)
+7) implement attention by euclid, not cosine: good
+8) stop words by Yi Yang
+9) normalized first word matching feature
 
 
 
@@ -50,6 +51,7 @@ Doesnt work:
 3) use bleu and nist scores
 1) true sentence lengths
 2) unnormalized sentence length
+8) euclid uses 1/exp(x)
 '''
 
 def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
@@ -65,6 +67,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
     mt_train, mt_test=load_mts_wikiQA(mtPath+'result_train/concate_9mt_train.txt', mtPath+'result_test/concate_9mt_test.txt')
     wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
+    #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
     indices_train_l=indices_train[::2,:]
     indices_train_r=indices_train[1::2,:]
@@ -209,7 +212,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     layer3_input=T.concatenate([#mts,
                                 uni_cosine,#eucli_1_exp,#uni_sigmoid_simi,  #norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
                                 layer1.output_cosine,  #layer1.output_eucli_to_simi_exp,#layer1.output_sigmoid_simi,#layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,#layer1.output_cosine, #
-                                len_l, len_r#wmf
+                                len_l, len_r#,wmf
                                 ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
