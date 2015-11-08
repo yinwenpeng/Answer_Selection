@@ -292,6 +292,7 @@ def compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length
     eucli=debug_print(T.sqrt(1e-10+T.sum(T.sqr(gap), axis=0)),'eucli')
     simi_matrix=debug_print((1.0/(1.0+eucli)).reshape((length_l, length_r)), 'simi_matrix')
     
+    
     return simi_matrix#[:length_l, :length_r]
 
 def compute_simi_feature(tensor, dim, para_matrix):

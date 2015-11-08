@@ -250,25 +250,31 @@ def reform_for_bleu_nist(trainFile):#not useful
 def putAllMtTogether():
     pathroot='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST'
     train_files=[pathroot+'/result_train/BLEU1-seg.scr',
-                 pathroot+'/result_train/BLEU2-seg.scr',pathroot+'/result_train/BLEU3-seg.scr',
-                 pathroot+'/result_train/BLEU4-seg.scr',
-                 pathroot+'/result_train/NIST1-seg.scr',pathroot+'/result_train/NIST2-seg.scr',
-                 pathroot+'/result_train/NIST3-seg.scr',pathroot+'/result_train/NIST4-seg.scr',
-                 pathroot+'/result_train/NIST5-seg.scr']
+                 #pathroot+'/result_train/BLEU2-seg.scr',pathroot+'/result_train/BLEU3-seg.scr',
+                 #pathroot+'/result_train/BLEU4-seg.scr',
+                 pathroot+'/result_train/NIST1-seg.scr',
+                 #pathroot+'/result_train/NIST2-seg.scr',
+                 #pathroot+'/result_train/NIST3-seg.scr',pathroot+'/result_train/NIST4-seg.scr',
+                 #pathroot+'/result_train/NIST5-seg.scr'
+                 ]
     
     test_files=[pathroot+'/result_test/BLEU1-seg.scr',
-                pathroot+'/result_test/BLEU2-seg.scr',pathroot+'/result_test/BLEU3-seg.scr',
-                pathroot+'/result_test/BLEU4-seg.scr',
-                 pathroot+'/result_test/NIST1-seg.scr',pathroot+'/result_test/NIST2-seg.scr',
-                 pathroot+'/result_test/NIST3-seg.scr',pathroot+'/result_test/NIST4-seg.scr',
-                 pathroot+'/result_test/NIST5-seg.scr',
-                  pathroot+'maxsim-v1.01/paraphrase/test.score']
+                #pathroot+'/result_test/BLEU2-seg.scr',pathroot+'/result_test/BLEU3-seg.scr',
+                #pathroot+'/result_test/BLEU4-seg.scr',
+                 pathroot+'/result_test/NIST1-seg.scr',
+                 #pathroot+'/result_test/NIST2-seg.scr',
+                 #pathroot+'/result_test/NIST3-seg.scr',pathroot+'/result_test/NIST4-seg.scr',
+                 #pathroot+'/result_test/NIST5-seg.scr',
+                  #pathroot+'maxsim-v1.01/paraphrase/test.score'
+                  ]
 
-    posi=[4, 4,4,4,4,  4,4,4,4]
+    #posi=[4, 4,4,4,4,  4,4,4,4]
+    posi=[4, 4]
+    size=len(posi)
     
-    train_write=open(pathroot+'/result_train/concate_9mt_train.txt', 'w')
+    train_write=open(pathroot+'/result_train/concate_2mt_train.txt', 'w')
     scores=[]
-    for i in range(9):
+    for i in range(size):
         read_file=open(train_files[i], 'r')
         list_values=[]
         for line in read_file:
@@ -279,14 +285,14 @@ def putAllMtTogether():
     values_matrix=numpy.array(scores)
     col=values_matrix.shape[1]
     for j in range(col):
-        for i in range(9):
+        for i in range(size):
             train_write.write(values_matrix[i,j]+'\t')
         train_write.write('\n')
     train_write.close()
     #test
-    test_write=open(pathroot+'/result_test/concate_9mt_test.txt', 'w')
+    test_write=open(pathroot+'/result_test/concate_2mt_test.txt', 'w')
     scores=[]
-    for i in range(9):
+    for i in range(size):
         read_file=open(test_files[i], 'r')
         list_values=[]
         for line in read_file:
@@ -297,21 +303,19 @@ def putAllMtTogether():
     values_matrix=numpy.array(scores)
     col=values_matrix.shape[1]
     for j in range(col):
-        for i in range(9):
+        for i in range(size):
             test_write.write(values_matrix[i,j]+'\t')
         test_write.write('\n')
     test_write.close()
     print 'finished'            
 
 def two_word_matching_methods(path, trainfile, testfile):
-    stop_word_list=open(path+'stop_words.txt', 'r')
+    stop_word_list=open(path+'short-stopwords.txt', 'r')
     stop_words=set()
-    '''
+    
     for line in stop_word_list:
-        if len(line)>0:#not empty
-            word=line.strip()
-            stop_words.add(word)
-    '''
+        word=line.strip()
+        stop_words.add(word)
     stop_word_list.close()
     print 'totally ', len(stop_words), ' stop words'
     #word 2 idf
@@ -328,7 +332,7 @@ def two_word_matching_methods(path, trainfile, testfile):
                         word2idf[word]=count+1
         read_file.close()
         
-        
+    '''   
     #train file
     read_train=open(path+trainfile, 'r')
     write_train=open(path+'train_word_matching_scores.txt','w')
@@ -363,6 +367,64 @@ def two_word_matching_methods(path, trainfile, testfile):
     write_test.close()
     read_test.close()             
     print 'two word matching values generated' 
+    '''
+    WC_train=[]
+    WWC_train=[]
+    #train file
+    read_train=open(path+trainfile, 'r')
+    #write_train=open(path+'train_word_matching_scores_normalized.txt','w')
+    for line in read_train:
+        parts=line.strip().split('\t')
+        WC=0
+        WWC=0
+        question=parts[0].split()
+        answer=parts[1].split()
+        for word in question:
+            if word not in stop_words and word in answer:
+                WC+=1
+                WWC+=1.0/word2idf.get(word)
+        WC_train.append(WC)
+        WWC_train.append(WWC)
+        #write_train.write(str(WC)+' '+str(WWC)+'\n')
+    #write_train.close()
+    read_train.close()
+    
+    #test file
+    WC_test=[]
+    WWC_test=[]
+    read_test=open(path+testfile, 'r')
+    #write_test=open(path+'test_word_matching_scores.txt','w')
+    for line in read_test:
+        parts=line.strip().split('\t')
+        WC=0
+        WWC=0
+        question=parts[0].split()
+        answer=parts[1].split()
+        for word in question:
+            if word not in stop_words and word in answer:
+                WC+=1
+                WWC+=1.0/word2idf.get(word)
+        WC_test.append(WC)
+        WWC_test.append(WWC)
+        #write_test.write(str(WC)+' '+str(WWC)+'\n')
+    #write_test.close()
+    read_test.close()   
+    WC_overall=WC_train+WC_test
+    max_WC=numpy.max(WC_overall)          
+    min_WC=numpy.min(WC_overall)
+    
+    write_train=open(path+'train_word_matching_scores_normalized.txt','w')
+    for index,wc in enumerate(WC_train):
+        wc=(wc-min_WC)*1.0/(max_WC-min_WC)
+        write_train.write(str(wc)+' '+str(WWC_train[index])+'\n')
+    write_train.close()
+    write_test=open(path+'test_word_matching_scores_normalized.txt','w')
+    for index,wc in enumerate(WC_test):
+        wc=(wc-min_WC)*1.0/(max_WC-min_WC)
+        write_test.write(str(wc)+' '+str(WWC_test[index])+'\n')
+    write_test.close()    
+    
+    print 'two word matching values generated' 
     
 if __name__ == '__main__':
     path='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/'
@@ -371,7 +433,7 @@ if __name__ == '__main__':
     #transcate_word2vec_into_wikiQA_vocab(path)
     #compute_map_mrr(path+'test_filtered.txt')
     #reform_for_bleu_nist(path+'WikiQA-train.txt')
-    #putAllMtTogether()
-    two_word_matching_methods(path, 'WikiQA-train.txt', 'test_filtered.txt')
+    putAllMtTogether()
+    #two_word_matching_methods(path, 'WikiQA-train.txt', 'test_filtered.txt')
 
 

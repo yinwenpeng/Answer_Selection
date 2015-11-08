@@ -41,6 +41,7 @@ from preprocess_wikiQA import compute_map_mrr
 7) implement attention by euclid, not cosine: good
 8) stop words by Yi Yang
 9) normalized first word matching feature
+10) only use bleu1 and nist1
 
 
 
@@ -65,7 +66,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', max_truncate,maxSentLength)#vocab_size contain train, dev and test
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
-    mt_train, mt_test=load_mts_wikiQA(mtPath+'result_train/concate_9mt_train.txt', mtPath+'result_test/concate_9mt_test.txt')
+    mt_train, mt_test=load_mts_wikiQA(mtPath+'result_train/concate_2mt_train.txt', mtPath+'result_test/concate_2mt_test.txt')
     wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
@@ -212,11 +213,11 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     layer3_input=T.concatenate([#mts,
                                 uni_cosine,#eucli_1_exp,#uni_sigmoid_simi,  #norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
                                 layer1.output_cosine,  #layer1.output_eucli_to_simi_exp,#layer1.output_sigmoid_simi,#layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,#layer1.output_cosine, #
-                                len_l, len_r#,wmf
+                                len_l, len_r,wmf
                                 ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=(1)+(1)+2, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=(1)+(1)+2+2, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()++(embeddings**2).sum()
