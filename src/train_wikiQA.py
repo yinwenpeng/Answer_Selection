@@ -120,7 +120,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     #rand_values=load_word2vec_to_init(rand_values, rootPath+'vocab_lower_in_word2vec_embs_300d.txt')
     embeddings=theano.shared(value=rand_values, borrow=True)      
     
-    cost_tmp=0
+    #cost_tmp=0
     error_sum=0
     
     # allocate symbolic variables for the data
@@ -138,6 +138,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     norm_length_r=T.dscalar()
     mts=T.dmatrix()
     wmf=T.dmatrix()
+    cost_tmp=T.dscalar()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
     ishape = (emb_size, maxSentLength)  # this is the size of MNIST images
     filter_size=(emb_size,window_width)
@@ -224,6 +225,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()++(embeddings**2).sum()
     cost_this =debug_print(layer3.negative_log_likelihood(y), 'cost_this')#+L2_weight*L2_reg
     cost=debug_print((cost_this+cost_tmp)/update_freq+L2_weight*L2_reg, 'cost')
+    #cost=debug_print((cost_this+cost_tmp)/update_freq, 'cost')
     
 
     
@@ -262,7 +264,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
         updates.append((param_i, param_i - learning_rate * grad_i / T.sqrt(acc)))   #AdaGrad
         updates.append((acc_i, acc))    
   
-    train_model = theano.function([index], [cost,layer3.errors(y), layer3_input], updates=updates,
+    train_model = theano.function([index,cost_tmp], cost, updates=updates,
           givens={
             x_index_l: indices_train_l[index: index + batch_size],
             x_index_r: indices_train_r[index: index + batch_size],
@@ -278,7 +280,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             mts: mt_train[index: index + batch_size],
             wmf: wm_train[index: index + batch_size]}, on_unused_input='ignore')
 
-    train_model_predict = theano.function([index], [cost_this,layer3.errors(y), layer3_input, y, layer1.output_vector_l, layer1.output_vector_r, layer1.output_cosine],
+    train_model_predict = theano.function([index], [cost_this,layer3.errors(y), layer3_input, y],
           givens={
             x_index_l: indices_train_l[index: index + batch_size],
             x_index_r: indices_train_r[index: index + batch_size],
@@ -329,7 +331,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
         #for minibatch_index in xrange(n_train_batches): # each batch
         minibatch_index=0
         #shuffle(train_batch_start)#shuffle training data
-        
+        cost_tmp=0.0
         for batch_start in train_batch_start: 
             # iter means how many batches have been runed, taking into loop
             iter = (epoch - 1) * n_train_batches + minibatch_index +1
@@ -340,16 +342,20 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             #time.sleep(0.5)
             #print batch_start
             if iter%update_freq != 0:
-                cost_ij, error_ij, layer3_input, y, sum_uni_l, sum_uni_r, uni_cosine=train_model_predict(batch_start)
+                cost_ij, error_ij, layer3_input, y=train_model_predict(batch_start)
                 #print 'layer3_input', layer3_input
                 cost_tmp+=cost_ij
                 error_sum+=error_ij
+                #print 'cost_acc ',cost_acc
+                #print 'cost_ij ', cost_ij
+                #print 'cost_tmp before update',cost_tmp
             else:
-                cost_average, error_ij, layer3_input= train_model(batch_start)
+                cost_average= train_model(batch_start,cost_tmp)
                 #print 'layer3_input', layer3_input
                 error_sum=0
-                cost_tmp=0#reset for the next batch
-                #print layer3_input
+                cost_tmp=0.0#reset for the next batch
+                #print 'cost_average ', cost_average
+                #print 'cost_this ',cost_this
                 #exit(0)
             #exit(0)
             if iter % n_train_batches == 0:
@@ -380,7 +386,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
                 train_features=[]
                 count=0
                 for batch_start in train_batch_start: 
-                    cost_ij, error_ij, layer3_input, y, sum_uni_l, sum_uni_r, uni_cosine=train_model_predict(batch_start)
+                    cost_ij, error_ij, layer3_input, y=train_model_predict(batch_start)
                     train_y.append(y[0])
                     train_features.append(layer3_input[0])
                     #write_feature.write(str(batch_start)+' '+' '.join(map(str,layer3_input[0]))+'\n')
