@@ -58,7 +58,7 @@ Doesnt work:
 
 def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1, window_width=4,
                     maxSentLength=64, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.0001, update_freq=1, norm_threshold=5.0, max_truncate=40):
+                    margin=0.5, L2_weight=0.0003, update_freq=1, norm_threshold=5.0, max_truncate=40):
     maxSentLength=max_truncate+2*(window_width-1)
     model_options = locals().copy()
     print "model options", model_options
