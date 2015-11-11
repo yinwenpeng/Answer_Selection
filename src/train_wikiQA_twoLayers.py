@@ -158,7 +158,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_siz
     
     
     conv_W, conv_b=create_conv_para(rng, filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]))
-
+    load_model_from_file([conv_W, conv_b])
     #layer0_output = debug_print(layer0.output, 'layer0.output')
     layer0_l = Conv_with_input_para(rng, input=layer0_l_input,
             image_shape=(batch_size, 1, ishape[0], ishape[1]),
@@ -176,6 +176,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_siz
                        dim=maxSentLength+filter_size[1]-1, window_size=window_width, maxSentLength=maxSentLength)
     
     conv2_W, conv2_b=create_conv_para(rng, filter_shape=(nkerns[1], 1, nkerns[0], filter_size[1]))
+    #load_model_from_file([conv2_W, conv2_b])
     layer2_l = Conv_with_input_para(rng, input=layer1.output_tensor_l,
             image_shape=(batch_size, 1, nkerns[0], ishape[1]),
             filter_shape=(nkerns[1], 1, nkerns[0], filter_size[1]), W=conv2_W, b=conv2_b)
@@ -236,7 +237,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_siz
     layer3=LogisticRegression(rng, input=layer3_input, n_in=(1)+(1)+(1)+2+2, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
-    L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()++(embeddings**2).sum()
+    L2_reg =debug_print((layer3.W** 2).sum()+(conv2_W**2).sum(), 'L2_reg')#+(conv_W** 2).sum()+(layer1.W** 2).sum()++(embeddings**2).sum()
     cost_this =debug_print(layer3.negative_log_likelihood(y), 'cost_this')#+L2_weight*L2_reg
     cost=debug_print((cost_this+cost_tmp)/update_freq+L2_weight*L2_reg, 'cost')
     #cost=debug_print((cost_this+cost_tmp)/update_freq, 'cost')
@@ -261,7 +262,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_siz
 
 
     #params = layer3.params + layer2.params + layer1.params+ [conv_W, conv_b]
-    params = layer3.params+ [conv_W, conv_b]#+[embeddings]# + layer1.params 
+    params = layer3.params+ layer2_para#+layer0_para
     
     accumulator=[]
     for para_i in params:
@@ -436,7 +437,11 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_siz
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
-
+def load_model_from_file(params):
+    save_file = open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/Best_Conv_Para')
+    for para in params:
+        para.set_value(cPickle.load(save_file), borrow=True)
+    save_file.close()
 def cosine(vec1, vec2):
     vec1=debug_print(vec1, 'vec1')
     vec2=debug_print(vec2, 'vec2')
