@@ -1,0 +1,79 @@
+wenpeng@sigma:~/workspace/Answer_Selection/src> nice -n 5 python train_wikiQA.py
+model options {'learning_rate': 0.05, 'window_width': 4, 'batch_size': 1, 'n_epochs': 2000, 'emb_size': 300, 'update_freq': 1, 'norm_threshold': 5.0, 'maxSentLength': 46, 'max_truncate': 40, 'L2_weight': 0.0003, 'hidden_size': 200, 'margin': 0.5, 'nkerns': [50]}
+train file loaded over, total pairs:  20360
+test file loaded over, total pairs:  2351
+initialization over...
+... building the model
+/usr/lib/python2.7/site-packages/Theano-0.6.0-py2.7.egg/theano/tensor/subtensor.py:110: FutureWarning: comparison to `None` will result in an elementwise object comparison in the future.
+  start in [None, 0] or
+/usr/lib/python2.7/site-packages/Theano-0.6.0-py2.7.egg/theano/tensor/subtensor.py:114: FutureWarning: comparison to `None` will result in an elementwise object comparison in the future.
+  stop in [None, length, maxsize] or
+/usr/lib/python2.7/site-packages/Theano-0.6.0-py2.7.egg/theano/tensor/subtensor.py:190: FutureWarning: comparison to `None` will result in an elementwise object comparison in the future.
+  if stop in [None, maxsize]:
+... training
+training @ iter = 20360 average cost: 0.0937371909884 error: 0/1 error rate: 0.0
+                                                epoch 1, minibatch 20360/20360, test MAP of best model 0.405924, MRR  0.407611
+                                                        SVM, MAP:  0.504120266231  MRR:  0.514136300185  LR:  0.595492132492  MRR:  0.606057966109
+training @ iter = 40720 average cost: 0.0899896027651 error: 0/1 error rate: 0.0
+                                                epoch 2, minibatch 20360/20360, test MAP of best model 0.425995, MRR  0.426723
+                                                        SVM, MAP:  0.482856935017  MRR:  0.483176488578  LR:  0.604536118581  MRR:  0.617730822825
+training @ iter = 61080 average cost: 0.0892935826805 error: 0/1 error rate: 0.0
+                                                epoch 3, minibatch 20360/20360, test MAP of best model 0.468072, MRR  0.470695
+                                                        SVM, MAP:  0.561104744168  MRR:  0.573700345151  LR:  0.593997402371  MRR:  0.605280617029
+training @ iter = 81440 average cost: 0.0919691512686 error: 0/1 error rate: 0.0
+                                                epoch 4, minibatch 20360/20360, test MAP of best model 0.503600, MRR  0.508063
+                                                        SVM, MAP:  0.524521599871  MRR:  0.532777945585  LR:  0.600531315963  MRR:  0.607932117037
+training @ iter = 101800 average cost: 0.087224588588 error: 0/1 error rate: 0.0
+                                                epoch 5, minibatch 20360/20360, test MAP of best model 0.562912, MRR  0.570936
+                                                        SVM, MAP:  0.568096501121  MRR:  0.577226899758  LR:  0.632855476861  MRR:  0.643504002012
+training @ iter = 122160 average cost: 0.0830536372911 error: 0/1 error rate: 0.0
+                                                epoch 6, minibatch 20360/20360, test MAP of best model 0.601530, MRR  0.611582
+                                                        SVM, MAP:  0.417992809813  MRR:  0.43288142832  LR:  0.637134557313  MRR:  0.651405617336
+training @ iter = 142520 average cost: 0.0839063095994 error: 0/1 error rate: 0.0
+                                                epoch 7, minibatch 20360/20360, test MAP of best model 0.611021, MRR  0.618531
+                                                        SVM, MAP:  0.595637179762  MRR:  0.60490115737  LR:  0.649560671437  MRR:  0.661294825065
+training @ iter = 162880 average cost: 0.0847084422586 error: 0/1 error rate: 0.0
+                                                epoch 8, minibatch 20360/20360, test MAP of best model 0.624007, MRR  0.632337
+                                                        SVM, MAP:  0.547116336062  MRR:  0.556439736532  LR:  0.650186198026  MRR:  0.657251457117
+training @ iter = 183240 average cost: 0.0876579055416 error: 0/1 error rate: 0.0
+                                                epoch 9, minibatch 20360/20360, test MAP of best model 0.635921, MRR  0.643362
+                                                        SVM, MAP:  0.637134064759  MRR:  0.644138240282  LR:  0.656611217396  MRR:  0.667575714181
+training @ iter = 203600 average cost: 0.0914581780704 error: 0/1 error rate: 0.0
+                                                epoch 10, minibatch 20360/20360, test MAP of best model 0.636323, MRR  0.646133
+                                                        SVM, MAP:  0.455593851429  MRR:  0.455190575851  LR:  0.657082107354  MRR:  0.668194393022
+training @ iter = 223960 average cost: 0.0940998812662 error: 0/1 error rate: 0.0
+                                                epoch 11, minibatch 20360/20360, test MAP of best model 0.640555, MRR  0.652468
+                                                        SVM, MAP:  0.635833468955  MRR:  0.648072674925  LR:  0.650547963125  MRR:  0.660290412605
+training @ iter = 244320 average cost: 0.0963975104641 error: 0/1 error rate: 0.0
+                                                epoch 12, minibatch 20360/20360, test MAP of best model 0.644912, MRR  0.658451
+                                                        SVM, MAP:  0.641753918496  MRR:  0.650896519726  LR:  0.648156335388  MRR:  0.656957538577
+training @ iter = 264680 average cost: 0.0928086976418 error: 0/1 error rate: 0.0
+                                                epoch 13, minibatch 20360/20360, test MAP of best model 0.646775, MRR  0.658501
+                                                        SVM, MAP:  0.605329273791  MRR:  0.614172264635  LR:  0.6502397291  MRR:  0.661347796844
+training @ iter = 285040 average cost: 0.0909863449101 error: 0/1 error rate: 0.0
+                                                epoch 14, minibatch 20360/20360, test MAP of best model 0.655413, MRR  0.668638
+                                                        SVM, MAP:  0.606715937607  MRR:  0.617587697237  LR:  0.654242923764  MRR:  0.664281070165
+training @ iter = 305400 average cost: 0.0908727765723 error: 0/1 error rate: 0.0
+                                                epoch 15, minibatch 20360/20360, test MAP of best model 0.659970, MRR  0.676300
+                                                        SVM, MAP:  0.688472869299  MRR:  0.705439747724  LR:  0.651845538342  MRR:  0.664270204259
+training @ iter = 325760 average cost: 0.0934350935822 error: 0/1 error rate: 0.0
+                                                epoch 16, minibatch 20360/20360, test MAP of best model 0.658218, MRR  0.676382
+                                                        SVM, MAP:  0.686554740263  MRR:  0.702579188073  LR:  0.653710440999  MRR:  0.667481759806
+training @ iter = 346120 average cost: 0.096561854084 error: 0/1 error rate: 0.0
+                                                epoch 17, minibatch 20360/20360, test MAP of best model 0.662223, MRR  0.679284
+                                                        SVM, MAP:  0.610507905744  MRR:  0.622864641075  LR:  0.658345897253  MRR:  0.671646403437
+training @ iter = 366480 average cost: 0.09948444035 error: 0/1 error rate: 0.0
+                                                epoch 18, minibatch 20360/20360, test MAP of best model 0.662912, MRR  0.678186
+                                                        SVM, MAP:  0.673953916567  MRR:  0.68796549983  LR:  0.664291038583  MRR:  0.678917127683
+training @ iter = 386840 average cost: 0.102038952176 error: 0/1 error rate: 0.0
+                                                epoch 19, minibatch 20360/20360, test MAP of best model 0.656368, MRR  0.672050
+                                                        SVM, MAP:  0.64100409926  MRR:  0.655663084058  LR:  0.652053709872  MRR:  0.667883718329
+training @ iter = 407200 average cost: 0.103989835639 error: 0/1 error rate: 0.0
+                                                epoch 20, minibatch 20360/20360, test MAP of best model 0.655979, MRR  0.671795
+                                                        SVM, MAP:  0.668520577682  MRR:  0.681961303623  LR:  0.655219977962  MRR:  0.67104349126
+training @ iter = 427560 average cost: 0.105248902576 error: 0/1 error rate: 0.0
+                                                epoch 21, minibatch 20360/20360, test MAP of best model 0.655886, MRR  0.673210
+                                                        SVM, MAP:  0.685962321824  MRR:  0.701470987255  LR:  0.658981076483  MRR:  0.677852959797
+training @ iter = 447920 average cost: 0.10378382259 error: 0/1 error rate: 0.0
+                                                epoch 22, minibatch 20360/20360, test MAP of best model 0.664063, MRR  0.682551
+                                                        SVM, MAP:  0.659301235291  MRR:  0.675149987187  LR:  0.65708099551  MRR:  0.677162655769 
