@@ -250,8 +250,16 @@ class Average_Pooling_for_Top(object):
         weights_question_matrix=T.repeat(weights_question, kern, axis=0)
         weights_answer_matrix=T.repeat(weights_answer, kern, axis=0)
         
+        #with attention
         dot_l=debug_print(T.sum(input_l_matrix*weights_question_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
         dot_r=debug_print(T.sum(input_r_matrix*weights_answer_matrix, axis=1),'dot_r')      
+        '''
+        #without attention
+        dot_l=debug_print(T.sum(input_l_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
+        dot_r=debug_print(T.sum(input_r_matrix, axis=1),'dot_r')      
+        '''
+        
+        
         norm_l=debug_print(T.sqrt((dot_l**2).sum()),'norm_l')
         norm_r=debug_print(T.sqrt((dot_r**2).sum()), 'norm_r')
         
