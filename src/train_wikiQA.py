@@ -248,6 +248,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
 
     #params = layer3.params + layer2.params + layer1.params+ [conv_W, conv_b]
     params = layer3.params+ [conv_W, conv_b]#+[embeddings]# + layer1.params 
+    params_conv = [conv_W, conv_b]
     
     accumulator=[]
     for para_i in params:
@@ -412,6 +413,13 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             update_freq=update_freq*1
         else:
             update_freq=update_freq/1
+        
+        #store the paras after epoch 15
+        if epoch ==15:
+            store_model_to_file(params_conv)
+            print 'Finished storing best conv params'
+            exit(0)
+            
         #print 'Batch_size: ', update_freq
     end_time = time.clock()
     print('Optimization complete.')
@@ -422,6 +430,12 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
+
+def store_model_to_file(best_params):
+    save_file = open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/Best_Conv_Para', 'wb')  # this will overwrite current contents
+    for para in best_params:           
+        cPickle.dump(para.get_value(borrow=True), save_file, -1)  # the -1 is for HIGHEST_PROTOCOL
+    save_file.close()
 
 def cosine(vec1, vec2):
     vec1=debug_print(vec1, 'vec1')
