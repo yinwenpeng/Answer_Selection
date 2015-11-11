@@ -56,10 +56,10 @@ Doesnt work:
 8) euclid uses 1/exp(x)
 '''
 
-def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_size=1, window_width=4,
+def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,100], batch_size=1, window_width=[4,4],
                     maxSentLength=64, emb_size=300, hidden_size=200,
                     margin=0.5, L2_weight=0.0005, update_freq=1, norm_threshold=5.0, max_truncate=40):
-    maxSentLength=max_truncate+2*(window_width-1)
+    maxSentLength=max_truncate+2*(window_width[0]-1)
     model_options = locals().copy()
     print "model options", model_options
     rootPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/';
@@ -141,7 +141,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_siz
     cost_tmp=T.dscalar()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
     ishape = (emb_size, maxSentLength)  # this is the size of MNIST images
-    filter_size=(emb_size,window_width)
+    filter_size=(emb_size,window_width[0])
+    filter_size_2=(nkerns[0], window_width[1])
     #poolsize1=(1, ishape[1]-filter_size[1]+1) #?????????????????????????????
     length_after_wideConv=ishape[1]+filter_size[1]-1
     
@@ -173,22 +174,22 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_siz
     layer1=Average_Pooling(rng, input_l=layer0_l_output, input_r=layer0_r_output, kern=nkerns[0],
                      left_l=left_l, right_l=right_l, left_r=left_r, right_r=right_r, 
                       length_l=length_l+filter_size[1]-1, length_r=length_r+filter_size[1]-1,
-                       dim=maxSentLength+filter_size[1]-1, window_size=window_width, maxSentLength=maxSentLength)
+                       dim=maxSentLength+filter_size[1]-1, window_size=window_width[0], maxSentLength=maxSentLength)
     
-    conv2_W, conv2_b=create_conv_para(rng, filter_shape=(nkerns[1], 1, nkerns[0], filter_size[1]))
+    conv2_W, conv2_b=create_conv_para(rng, filter_shape=(nkerns[1], 1, filter_size_2[0], filter_size_2[1]))
     #load_model_from_file([conv2_W, conv2_b])
     layer2_l = Conv_with_input_para(rng, input=layer1.output_tensor_l,
             image_shape=(batch_size, 1, nkerns[0], ishape[1]),
-            filter_shape=(nkerns[1], 1, nkerns[0], filter_size[1]), W=conv2_W, b=conv2_b)
+            filter_shape=(nkerns[1], 1, filter_size_2[0], filter_size_2[1]), W=conv2_W, b=conv2_b)
     layer2_r = Conv_with_input_para(rng, input=layer1.output_tensor_r,
             image_shape=(batch_size, 1, nkerns[0], ishape[1]),
-            filter_shape=(nkerns[1], 1, nkerns[0], filter_size[1]), W=conv2_W, b=conv2_b)
+            filter_shape=(nkerns[1], 1, filter_size_2[0], filter_size_2[1]), W=conv2_W, b=conv2_b)
     layer2_para=[conv2_W, conv2_b]
         
     layer3=Average_Pooling_for_Top(rng, input_l=layer2_l.output, input_r=layer2_r.output, kern=nkerns[1],
                                        left_l=left_l, right_l=right_l, left_r=left_r, right_r=right_r, 
-                                       length_l=length_l+filter_size[1]-1, length_r=length_r+filter_size[1]-1,
-                                       dim=maxSentLength+filter_size[1]-1)
+                                       length_l=length_l+filter_size_2[1]-1, length_r=length_r+filter_size_2[1]-1,
+                                       dim=maxSentLength+filter_size_2[1]-1)
 
 
     
@@ -438,7 +439,10 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_siz
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
 def load_model_from_file(params):
-    save_file = open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/Best_Conv_Para')
+    #save_file = open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/Best_Conv_Para')
+    #save_file = open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/Best_Conv_Para_at_18')
+    save_file = open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/Best_Conv_Para_at_22')
+    
     for para in params:
         para.set_value(cPickle.load(save_file), borrow=True)
     save_file.close()
