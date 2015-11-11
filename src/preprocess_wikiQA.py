@@ -154,21 +154,22 @@ def compute_map_mrr(file, probs):
     for i in range(question_no):
         sub_labels=labels[separate[i]:separate[i+1]]
         sub_probs=probs[separate[i]:separate[i+1]]
-        sub_dict = {k: v for k, v in izip(sub_probs, sub_labels)}
-        sorted_probs=sorted(sub_probs, reverse = True) 
+        sub_dict = [(prob, label) for prob, label in izip(sub_probs, sub_labels)] # a list of tuple
+        #sorted_probs=sorted(sub_probs, reverse = True)
+        sorted_tuples=sorted(sub_dict,key=lambda tup: tup[0], reverse = True) 
         map=0.0
         find=False
         corr_no=0
         #MAP
-        for index, prob in enumerate(sorted_probs):
-            if sub_dict[prob]==1:
-                corr_no+=1
+        for index, (prob,label) in enumerate(sorted_tuples):
+            if label==1:
+                corr_no+=1 # the no of correct answers
                 all_corr_answer+=1
                 map+=1.0*corr_no/(index+1)
                 find=True
         #MRR
-        for index, prob in enumerate(sorted_probs):
-            if sub_dict[prob]==1:
+        for index, (prob,label) in enumerate(sorted_tuples):
+            if label==1:
                 all_mrr+=1.0/(index+1)
                 break # only consider the first correct answer              
         if find is False:
@@ -249,22 +250,22 @@ def reform_for_bleu_nist(trainFile):#not useful
         
 def putAllMtTogether():
     pathroot='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST'
-    train_files=[pathroot+'/result_train/BLEU1-seg.scr',
+    train_files=[#pathroot+'/result_train/BLEU1-seg.scr',
                  #pathroot+'/result_train/BLEU2-seg.scr',pathroot+'/result_train/BLEU3-seg.scr',
-                 #pathroot+'/result_train/BLEU4-seg.scr',
-                 pathroot+'/result_train/NIST1-seg.scr',
+                 pathroot+'/result_train/BLEU4-seg.scr',
+                 #pathroot+'/result_train/NIST1-seg.scr',
                  #pathroot+'/result_train/NIST2-seg.scr',
                  #pathroot+'/result_train/NIST3-seg.scr',pathroot+'/result_train/NIST4-seg.scr',
-                 #pathroot+'/result_train/NIST5-seg.scr'
+                 pathroot+'/result_train/NIST5-seg.scr'
                  ]
     
-    test_files=[pathroot+'/result_test/BLEU1-seg.scr',
+    test_files=[#pathroot+'/result_test/BLEU1-seg.scr',
                 #pathroot+'/result_test/BLEU2-seg.scr',pathroot+'/result_test/BLEU3-seg.scr',
-                #pathroot+'/result_test/BLEU4-seg.scr',
-                 pathroot+'/result_test/NIST1-seg.scr',
+                pathroot+'/result_test/BLEU4-seg.scr',
+                 #pathroot+'/result_test/NIST1-seg.scr',
                  #pathroot+'/result_test/NIST2-seg.scr',
                  #pathroot+'/result_test/NIST3-seg.scr',pathroot+'/result_test/NIST4-seg.scr',
-                 #pathroot+'/result_test/NIST5-seg.scr',
+                 pathroot+'/result_test/NIST5-seg.scr',
                   #pathroot+'maxsim-v1.01/paraphrase/test.score'
                   ]
 
