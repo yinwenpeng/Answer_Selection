@@ -324,7 +324,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[50,50], batch_siz
                            # found
     improvement_threshold = 0.995  # a relative improvement of this much is
                                    # considered significant
-    validation_frequency = min(n_train_batches, patience / 2)
+    validation_frequency = min(n_train_batches/5, patience / 2)
                                   # go through this many
                                   # minibatche before checking the network
                                   # on the validation set; in this case we
