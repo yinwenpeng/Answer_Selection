@@ -16,7 +16,7 @@ from WPDefined import ConvFoldPoolLayer, dropout_from_layer, shared_dataset, rep
 from cis.deep.utils.theano import debug_print
 from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
-from loadData import load_msr_corpus, load_word2vec_to_init, load_mts
+from loadData import load_msr_corpus, load_word2vec_to_init, load_mts, load_wmf_wikiQA
 from word2embeddings.nn.util import zero_value, random_value_normal
 from common_functions import Conv_with_input_para, Average_Pooling_for_Top, create_conv_para
 from random import shuffle
@@ -32,10 +32,10 @@ from scipy import linalg, mat, dot
 '''
 0) word matching features
 1) word2vec has uppercase, so initialization needs no lowercase
-2) for attention computing, maybe cosine is not as good as euclidean
+
 '''
 
-def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
                     margin=0.5, L2_weight=0.0001, update_freq=1, norm_threshold=5.0):
 
@@ -46,6 +46,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     datasets, vocab_size=load_msr_corpus(rootPath+'vocab.txt', rootPath+'tokenized_train.txt', rootPath+'tokenized_test.txt', maxSentLength)
     mtPath='/mounts/data/proj/wenpeng/Dataset/paraphraseMT/'
     mt_train, mt_test=load_mts(mtPath+'concate_15mt_train.txt', mtPath+'concate_15mt_test.txt')
+    wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
     indices_train_l=indices_train[::2,:]
     indices_train_r=indices_train[1::2,:]
@@ -112,6 +113,7 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     norm_length_l=T.dscalar()
     norm_length_r=T.dscalar()
     mts=T.dmatrix()
+    wmf=T.dmatrix()
     cost_tmp=T.dscalar()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
     ishape = (emb_size, maxSentLength)  # this is the size of MNIST images
@@ -181,12 +183,15 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
     #length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
     layer3_input=T.concatenate([mts, 
-                                eucli_1, #norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
-                                layer1.output_eucli_to_simi, #layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,#layer1.output_cosine, #
-                                len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
+                                eucli_1, #uni_cosine,#norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
+                                layer1.output_eucli_to_simi, #layer1.output_cosine,#layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,#layer1.output_cosine, #
+                                len_l, len_r,
+                                #layer1.output_attentions,
+                                #wmf,
+                                ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=15+(1)+(1)+2, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=15+(2)+(2)+2, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()
@@ -208,7 +213,8 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             length_r: testLengths_r[index],
             norm_length_l: normalized_test_length_l[index],
             norm_length_r: normalized_test_length_r[index],
-            mts: mt_test[index: index + batch_size]}, on_unused_input='ignore')
+            mts: mt_test[index: index + batch_size],
+            wmf: wm_test[index: index + batch_size]}, on_unused_input='ignore')
 
 
     #params = layer3.params + layer2.params + layer1.params+ [conv_W, conv_b]
@@ -246,7 +252,8 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
             norm_length_r: normalized_train_length_r[index],
-            mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
+            mts: mt_train[index: index + batch_size],
+            wmf: wm_train[index: index + batch_size]}, on_unused_input='ignore')
 
     train_model_predict = theano.function([index], [cost_this,layer3.errors(y), layer3_input, y , sum_uni_l, sum_uni_r, uni_cosine],
           givens={
@@ -261,7 +268,8 @@ def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
             norm_length_r: normalized_train_length_r[index],
-            mts: mt_train[index: index + batch_size]}, on_unused_input='ignore')
+            mts: mt_train[index: index + batch_size],
+            wmf: wm_train[index: index + batch_size]}, on_unused_input='ignore')
 
 
 

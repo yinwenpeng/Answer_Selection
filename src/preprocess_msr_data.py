@@ -51,7 +51,7 @@ def transcate_word2vec_into_msr_vocab():
     print 'word2vec loaded over...'
     readFile=open(rootPath+'vocab.txt', 'r')
     writeFile=open(rootPath+'vocab_embs_300d.txt', 'w')
-    random_emb=list(numpy.random.uniform(-0.1,0.1,dim))
+    random_emb=list(numpy.random.uniform(-0.01,0.01,dim))
     for line in readFile:
         tokens=line.strip().split()
         emb=word2vec.get(tokens[1])
@@ -122,10 +122,101 @@ def putAllMtTogether():
         test_write.write('\n')
     test_write.close()
     print 'finished'
+def two_word_matching_methods(path, trainfile, testfile):
+    stop_word_list=open(path+'short-stopwords.txt', 'r')
+    stop_words=set()
     
+    for line in stop_word_list:
+        word=line.strip()
+        stop_words.add(word)
+    stop_word_list.close()
+    print 'totally ', len(stop_words), ' stop words'
+    #word 2 idf
+    word2idf={}
+    for file in [trainfile, testfile]:
+        read_file=open(path+file, 'r')
+        for line in read_file:
+            parts=line.strip().split('\t')
+            for i in [1,2]:
+                sent2set=set(parts[i].split())# do not consider repetition
+                for word in sent2set:
+                    if word not in stop_words:
+                        count=word2idf.get(word,0)
+                        word2idf[word]=count+1
+        read_file.close()
+        
+    WC_train=[]
+    WWC_train=[]
+    #train file
+    read_train=open(path+trainfile, 'r')
+    #write_train=open(path+'train_word_matching_scores_normalized.txt','w')
+    for line in read_train:
+        parts=line.strip().split('\t')
+        WC=0
+        WWC=0
+        question=parts[1].split()
+        answer=parts[2].split()
+        for word in question:
+            if word not in stop_words and word in answer:
+                WC+=1
+                WWC+=1.0/word2idf.get(word)
+        WC_train.append(WC)
+        WWC_train.append(WWC)
+        #change question and answer
+        WC=0
+        WWC=0
+        question=parts[2].split()
+        answer=parts[1].split()
+        for word in question:
+            if word not in stop_words and word in answer:
+                WC+=1
+                WWC+=1.0/word2idf.get(word)
+        WC_train.append(WC)
+        WWC_train.append(WWC)
+        #write_train.write(str(WC)+' '+str(WWC)+'\n')
+    #write_train.close()
+    read_train.close()
+    
+    #test file
+    WC_test=[]
+    WWC_test=[]
+    read_test=open(path+testfile, 'r')
+    #write_test=open(path+'test_word_matching_scores.txt','w')
+    for line in read_test:
+        parts=line.strip().split('\t')
+        WC=0
+        WWC=0
+        question=parts[1].split()
+        answer=parts[2].split()
+        for word in question:
+            if word not in stop_words and word in answer:
+                WC+=1
+                WWC+=1.0/word2idf.get(word)
+        WC_test.append(WC)
+        WWC_test.append(WWC)
+        #write_test.write(str(WC)+' '+str(WWC)+'\n')
+    #write_test.close()
+    read_test.close()   
+    WC_overall=WC_train+WC_test
+    max_WC=numpy.max(WC_overall)          
+    min_WC=numpy.min(WC_overall)
+    
+    write_train=open(path+'train_word_matching_scores_normalized.txt','w')
+    for index,wc in enumerate(WC_train):
+        wc=(wc-min_WC)*1.0/(max_WC-min_WC)
+        write_train.write(str(wc)+' '+str(WWC_train[index])+'\n')
+    write_train.close()
+    write_test=open(path+'test_word_matching_scores_normalized.txt','w')
+    for index,wc in enumerate(WC_test):
+        wc=(wc-min_WC)*1.0/(max_WC-min_WC)
+        write_test.write(str(wc)+' '+str(WWC_test[index])+'\n')
+    write_test.close()    
+    
+    print 'two word matching values generated'    
 
 if __name__ == '__main__':
     #Extract_Vocab()
     #transcate_word2vec_into_msr_vocab()
-    putAllMtTogether()
+    #putAllMtTogether()
+    two_word_matching_methods('/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/', 'tokenized_train.txt', 'tokenized_test.txt')
             
