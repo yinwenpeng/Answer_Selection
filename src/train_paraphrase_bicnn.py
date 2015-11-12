@@ -24,14 +24,20 @@ from random import shuffle
 from sklearn import svm
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.svm import LinearSVC
+from sklearn.linear_model import LinearRegression
 
 from scipy import linalg, mat, dot
 
+#need to modify
+'''
+0) word matching features
+1) word2vec has uppercase, so initialization needs no lowercase
+2) for attention computing, maybe cosine is not as good as euclidean
+'''
 
-
-def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.05, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=60, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.00005, update_freq=100, norm_threshold=5.0):
+                    margin=0.5, L2_weight=0.0001, update_freq=1, norm_threshold=5.0):
 
     model_options = locals().copy()
     print "model options", model_options
@@ -106,6 +112,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     norm_length_l=T.dscalar()
     norm_length_r=T.dscalar()
     mts=T.dmatrix()
+    cost_tmp=T.dscalar()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
     ishape = (emb_size, maxSentLength)  # this is the size of MNIST images
     filter_size=(emb_size,window_width)
@@ -174,12 +181,12 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     #length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
     layer3_input=T.concatenate([mts, 
-                                eucli_1, #uni_cosine, #norm_uni_l-(norm_uni_l+norm_uni_r)/2,
-                                layer1.output_eucli_to_simi, #layer1.output_cosine, #layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,
+                                eucli_1, #norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
+                                layer1.output_eucli_to_simi, #layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,#layer1.output_cosine, #
                                 len_l, len_r], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=15+(2)+(2)+2, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=15+(1)+(1)+2, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()
@@ -226,7 +233,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
         updates.append((param_i, param_i - learning_rate * grad_i / T.sqrt(acc)))   #AdaGrad
         updates.append((acc_i, acc))    
   
-    train_model = theano.function([index], [cost,layer3.errors(y), layer3_input], updates=updates,
+    train_model = theano.function([index,cost_tmp], [cost,layer3.errors(y), layer3_input], updates=updates,
           givens={
             x_index_l: indices_train_l[index: index + batch_size],
             x_index_r: indices_train_r[index: index + batch_size],
@@ -268,7 +275,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
                            # found
     improvement_threshold = 0.995  # a relative improvement of this much is
                                    # considered significant
-    validation_frequency = min(n_train_batches, patience / 2)
+    validation_frequency = min(n_train_batches/5, patience / 2)
                                   # go through this many
                                   # minibatche before checking the network
                                   # on the validation set; in this case we
@@ -283,7 +290,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     epoch = 0
     done_looping = False
     
-    svm_max=0.0
+    max_acc=0.0
     best_epoch=0
 
     while (epoch < n_epochs) and (not done_looping):
@@ -291,7 +298,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
         #for minibatch_index in xrange(n_train_batches): # each batch
         minibatch_index=0
         #shuffle(train_batch_start)#shuffle training data
-        
+        cost_tmp=0.0
         for batch_start in train_batch_start: 
             # iter means how many batches have been runed, taking into loop
             iter = (epoch - 1) * n_train_batches + minibatch_index +1
@@ -306,10 +313,10 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
                 cost_tmp+=cost_ij
                 error_sum+=error_ij
             else:
-                cost_average, error_ij, layer3_input= train_model(batch_start)
+                cost_average, error_ij, layer3_input= train_model(batch_start,cost_tmp)
                 #print 'training @ iter = '+str(iter)+' average cost: '+str(cost_average)+' sum error: '+str(error_sum)+'/'+str(update_freq)
                 error_sum=0
-                cost_tmp=0#reset for the next batch
+                cost_tmp=0.0#reset for the next batch
                 #print layer3_input
                 #exit(0)
             #exit(0)
@@ -352,16 +359,25 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
                 clf = svm.SVC(kernel='linear')#OneVsRestClassifier(LinearSVC()) #linear 76.11%, poly 75.19, sigmoid 66.50, rbf 73.33
                 clf.fit(train_features, train_y)
                 results=clf.predict(test_features)
+                lr=LinearRegression().fit(train_features, train_y)
+                results_lr=lr.predict(test_features)
                 corr_count=0
+                corr_lr=0
                 test_size=len(test_y)
                 for i in range(test_size):
                     if results[i]==test_y[i]:
                         corr_count+=1
+                    if numpy.absolute(results_lr[i]-test_y[i])<0.5:
+                        corr_lr+=1
                 acc=corr_count*1.0/test_size
-                if acc > svm_max:
-                    svm_max=acc
+                acc_lr=corr_lr*1.0/test_size
+                if acc > max_acc:
+                    max_acc=acc
                     best_epoch=epoch
-                print '\t\t\t\t\t\t\t\t\t\t\tsvm acc: ', acc, ' max svm: ',    svm_max , ' at epoch: ', best_epoch     
+                if acc_lr> max_acc:
+                    max_acc=acc_lr
+                    best_epoch=epoch
+                print '\t\t\t\t\t\t\t\t\t\t\tsvm acc: ', acc, 'LR acc: ', acc_lr, ' max acc: ',    max_acc , ' at epoch: ', best_epoch     
                 #exit(0)
             if patience <= iter:
                 done_looping = True

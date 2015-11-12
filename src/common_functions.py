@@ -153,9 +153,15 @@ class Average_Pooling(object):
         weights_question_matrix=T.repeat(weights_question, kern, axis=0)
         weights_answer_matrix=T.repeat(weights_answer, kern, axis=0)
         
+        #with attention
         weighted_matrix_l=input_l_matrix*weights_question_matrix # first add 1e-20 for each element to make non-zero input for weight gradient
         weighted_matrix_r=input_r_matrix*weights_answer_matrix
-
+        '''
+        #without attention
+        weighted_matrix_l=input_l_matrix # first add 1e-20 for each element to make non-zero input for weight gradient
+        weighted_matrix_r=input_r_matrix
+        '''
+        
         sub_tensor_list_l=[]
         for i in range(window_size):
             if i ==0:
@@ -284,7 +290,7 @@ def compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length
     repeated_1=debug_print(T.repeat(input_l_matrix, dim, axis=1)[:, : (length_l*length_r)],'repeated_1') # add 10 because max_sent_length is only input for conv, conv will make size bigger
     repeated_2=debug_print(repeat_whole_tensor(matrix_r_after_translate, dim, False)[:, : (length_l*length_r)],'repeated_2')
     '''
-    #repeated_2=T.repeat(even_tensor, even_tensor.shape[3], axis=2).reshape((tensor.shape[0]/2, tensor.shape[1], tensor.shape[2], tensor.shape[3]**2))    
+    #cosine attention   
     length_1=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_1), axis=0)),'length_1')
     length_2=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_2), axis=0)), 'length_2')
 
@@ -293,9 +299,9 @@ def compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length
     
     list_of_simi= debug_print(sum_multi/(length_1*length_2),'list_of_simi')   #to get rid of zero length
     simi_matrix=debug_print(list_of_simi.reshape((length_l, length_r)), 'simi_matrix')
-    '''
     
-    #euclid
+    '''
+    #euclid, effective for wikiQA
     gap=debug_print(repeated_1-repeated_2, 'gap')
     eucli=debug_print(T.sqrt(1e-10+T.sum(T.sqr(gap), axis=0)),'eucli')
     simi_matrix=debug_print((1.0/(1.0+eucli)).reshape((length_l, length_r)), 'simi_matrix')
