@@ -217,6 +217,44 @@ class Average_Pooling(object):
 
         self.params = [self.W]
 
+class Average_Pooling_for_ARCII(object):
+    """The input is output of Conv: a tensor.  The output here should also be tensor"""
+
+    def __init__(self, rng, input_l, input_r): # length_l, length_r: valid lengths after conv
+        
+        input_l_matrix=debug_print(input_l.reshape((input_l.shape[2], input_l.shape[3])), 'origin_input_l_matrix')
+        #input_l_matrix=debug_print(input_l_matrix[:, left_l:(input_l_matrix.shape[1]-right_l)],'input_l_matrix')
+        input_r_matrix=debug_print(input_r.reshape((input_r.shape[2], input_r.shape[3])),'origin_input_r_matrix')
+        #input_r_matrix=debug_print(input_r_matrix[:, left_r:(input_r_matrix.shape[1]-right_r)],'input_r_matrix')
+    
+        
+        #with attention
+        dot_l=debug_print(T.sum(input_l_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
+        dot_r=debug_print(T.sum(input_r_matrix, axis=1),'dot_r')      
+        '''
+        #without attention
+        dot_l=debug_print(T.sum(input_l_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
+        dot_r=debug_print(T.sum(input_r_matrix, axis=1),'dot_r')      
+        '''
+        '''
+        #with attention, then max pooling
+        dot_l=debug_print(T.max(input_l_matrix*weights_question_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
+        dot_r=debug_print(T.max(input_r_matrix*weights_answer_matrix, axis=1),'dot_r')          
+        '''
+        norm_l=debug_print(T.sqrt((dot_l**2).sum()),'norm_l')
+        norm_r=debug_print(T.sqrt((dot_r**2).sum()), 'norm_r')
+        
+        self.output_vector_l=debug_print((dot_l/norm_l).reshape((1, input_l.shape[2])),'output_vector_l')
+        self.output_vector_r=debug_print((dot_r/norm_r).reshape((1, input_r.shape[2])), 'output_vector_r')      
+        self.output_concate=T.concatenate([dot_l, dot_r], axis=0).reshape((1, input_l.shape[2]*2))
+        self.output_cosine=debug_print((T.sum(dot_l*dot_r)/norm_l/norm_r).reshape((1,1)),'output_cosine')
+
+        self.output_eucli=debug_print(T.sqrt(T.sqr(dot_l-dot_r).sum()+1e-20).reshape((1,1)),'output_eucli')
+        self.output_eucli_to_simi=1.0/(1.0+self.output_eucli)
+        #self.output_eucli_to_simi_exp=1.0/T.exp(self.output_eucli) # not good
+        #self.output_sigmoid_simi=debug_print(T.nnet.sigmoid(T.dot(dot_l/norm_l, (dot_r/norm_r).T)).reshape((1,1)),'output_sigmoid_simi')    
+
+
 class Average_Pooling_for_Top(object):
     """The input is output of Conv: a tensor.  The output here should also be tensor"""
 
@@ -264,8 +302,11 @@ class Average_Pooling_for_Top(object):
         dot_l=debug_print(T.sum(input_l_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
         dot_r=debug_print(T.sum(input_r_matrix, axis=1),'dot_r')      
         '''
-        
-        
+        '''
+        #with attention, then max pooling
+        dot_l=debug_print(T.max(input_l_matrix*weights_question_matrix, axis=1), 'dot_l') # first add 1e-20 for each element to make non-zero input for weight gradient
+        dot_r=debug_print(T.max(input_r_matrix*weights_answer_matrix, axis=1),'dot_r')          
+        '''
         norm_l=debug_print(T.sqrt((dot_l**2).sum()),'norm_l')
         norm_r=debug_print(T.sqrt((dot_r**2).sum()), 'norm_r')
         
@@ -277,8 +318,8 @@ class Average_Pooling_for_Top(object):
         self.output_eucli=debug_print(T.sqrt(T.sqr(dot_l-dot_r).sum()+1e-20).reshape((1,1)),'output_eucli')
         self.output_eucli_to_simi=1.0/(1.0+self.output_eucli)
         #self.output_eucli_to_simi_exp=1.0/T.exp(self.output_eucli) # not good
-        self.output_sigmoid_simi=debug_print(T.nnet.sigmoid(T.dot(dot_l/norm_l, (dot_r/norm_r).T)).reshape((1,1)),'output_sigmoid_simi')    
-        
+        #self.output_sigmoid_simi=debug_print(T.nnet.sigmoid(T.dot(dot_l/norm_l, (dot_r/norm_r).T)).reshape((1,1)),'output_sigmoid_simi')    
+        self.output_attentions=unify_eachone(simi_tensor, length_l, length_r, 7)
         
 
         self.params = [self.W]
@@ -355,5 +396,92 @@ def compute_acc(label_list, scores_list):
             correct_count+=1
     
     return correct_count*1.0/total_examples
-            
+#def unify_eachone(tensor, left1, right1, left2, right2, dim, Np):
+def unify_eachone(matrix, sentlength_1, sentlength_2, Np):
+
+    #tensor: (1, feature maps, 66, 66)
+    #sentlength_1=dim-left1-right1
+    #sentlength_2=dim-left2-right2
+    #core=tensor[:,:, left1:(dim-right1),left2:(dim-right2) ]
+
+    repeat_row=Np/sentlength_1
+    extra_row=Np%sentlength_1
+    repeat_col=Np/sentlength_2
+    extra_col=Np%sentlength_2    
+
+    #repeat core
+    matrix_1=repeat_whole_tensor(matrix, 5, True) 
+    matrix_2=repeat_whole_tensor(matrix_1, 5, False)
+    
+    new_rows=T.maximum(sentlength_1, sentlength_1*repeat_row+extra_row)
+    new_cols=T.maximum(sentlength_2, sentlength_2*repeat_col+extra_col)
+    
+    #core=debug_print(core_2[:,:, :new_rows, : new_cols],'core')
+    new_matrix=debug_print(matrix_2[:new_rows,:new_cols], 'new_matrix')
+    #determine x, y start positions
+    size_row=new_rows/Np
+    remain_row=new_rows%Np
+    size_col=new_cols/Np
+    remain_col=new_cols%Np
+    
+    xx=debug_print(T.concatenate([T.arange(Np-remain_row+1)*size_row, (Np-remain_row)*size_row+(T.arange(remain_row)+1)*(size_row+1)]),'xx')
+    yy=debug_print(T.concatenate([T.arange(Np-remain_col+1)*size_col, (Np-remain_col)*size_col+(T.arange(remain_col)+1)*(size_col+1)]),'yy')
+    
+    list_of_maxs=[]
+    for i in xrange(Np):
+        for j in xrange(Np):
+            region=debug_print(new_matrix[xx[i]:xx[i+1], yy[j]:yy[j+1]],'region')
+            #maxvalue1=debug_print(T.max(region, axis=2), 'maxvalue1')
+            maxvalue=debug_print(T.max(region).reshape((1,1)), 'maxvalue')
+            list_of_maxs.append(maxvalue)
+    
+
+    all_max_value=T.concatenate(list_of_maxs, axis=1).reshape((1, Np**2))
+    
+    return all_max_value            
+
+
+class Create_Attention_Input_Cnn(object):
+    """The input is output of Conv: a tensor.  The output here should also be tensor"""
+
+    def __init__(self, rng, tensor_l, tensor_r, dim,kern, l_left_pad, l_right_pad, r_left_pad, r_right_pad): # length_l, length_r: valid lengths after conv
+        #first reshape into matrix
+        matrix_l=tensor_l.reshape((tensor_l.shape[2], tensor_l.shape[3]))
+        matrix_r=tensor_r.reshape((tensor_r.shape[2], tensor_r.shape[3]))
+        #start
+        repeated_1=debug_print(T.repeat(matrix_l, dim, axis=1),'repeated_1') # add 10 because max_sent_length is only input for conv, conv will make size bigger
+        repeated_2=debug_print(repeat_whole_tensor(matrix_r, dim, False),'repeated_2')
+        '''
+        #cosine attention   
+        length_1=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_1), axis=0)),'length_1')
+        length_2=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_2), axis=0)), 'length_2')
+    
+        multi=debug_print(repeated_1*repeated_2, 'multi')
+        sum_multi=debug_print(T.sum(multi, axis=0),'sum_multi')
+        
+        list_of_simi= debug_print(sum_multi/(length_1*length_2),'list_of_simi')   #to get rid of zero length
+        simi_matrix=debug_print(list_of_simi.reshape((length_l, length_r)), 'simi_matrix')
+        
+        '''
+        #euclid, effective for wikiQA
+        gap=debug_print(repeated_1-repeated_2, 'gap')
+        eucli=debug_print(T.sqrt(1e-10+T.sum(T.sqr(gap), axis=0)),'eucli')
+        simi_matrix=debug_print((1.0/(1.0+eucli)).reshape((dim, dim)), 'simi_matrix')
+        W_bound = numpy.sqrt(6. / (dim + kern))
+        self.W = theano.shared(numpy.asarray(rng.uniform(low=-W_bound, high=W_bound, size=(kern, dim)),dtype=theano.config.floatX),borrow=True) #a weight matrix kern*kern
+        matrix_l_attention=debug_print(T.dot(self.W, simi_matrix.T), 'matrix_l_attention')
+        matrix_r_attention=debug_print(T.dot(self.W, simi_matrix), 'matrix_r_attention')
+        #reset zero at both side
+        left_zeros_l=T.set_subtensor(matrix_l_attention[:,:l_left_pad], T.zeros((matrix_l_attention.shape[0], l_left_pad), dtype=theano.config.floatX))
+        right_zeros_l=T.set_subtensor(left_zeros_l[:,-l_right_pad:], T.zeros((matrix_l_attention.shape[0], l_right_pad), dtype=theano.config.floatX))
+        left_zeros_r=T.set_subtensor(matrix_r_attention[:,:r_left_pad], T.zeros((matrix_r_attention.shape[0], r_left_pad), dtype=theano.config.floatX))
+        right_zeros_r=T.set_subtensor(left_zeros_r[:,-r_right_pad:], T.zeros((matrix_r_attention.shape[0], r_right_pad), dtype=theano.config.floatX))       
+        #combine with original input matrix
+        self.new_tensor_l=T.concatenate([matrix_l,right_zeros_l], axis=0).reshape((tensor_l.shape[0], 2*tensor_l.shape[1], tensor_l.shape[2], tensor_l.shape[3])) 
+        self.new_tensor_r=T.concatenate([matrix_r,right_zeros_r], axis=0).reshape((tensor_r.shape[0], 2*tensor_r.shape[1], tensor_r.shape[2], tensor_r.shape[3])) 
+        
+        self.params=[self.W]
+
+    
+    
     
