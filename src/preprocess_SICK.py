@@ -2,6 +2,7 @@ import numpy
 from itertools import izip
 from xml.sax.saxutils import escape
 from nltk.tokenize import TreebankWordTokenizer
+from sklearn import svm
 
 def extract_pairs(path, inputfile):
     read_file=open(path+inputfile, 'r')
@@ -196,22 +197,35 @@ def compute_map_mrr(file, probs):
     MRR=all_mrr/all_corr_answer
     '''
               
-def reform_for_bleu_nist(trainFile):#not useful
+def reform_for_bleu_nist(path, trainFile, file_title):#not useful
     #first src file
-    read_train=open(trainFile, 'r')
-    write_src=open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/train_src.xml', 'w')
+    read_train=open(path+trainFile, 'r')
+    write_src=open(path+file_title+'_src.xml', 'w')
     write_src.write('<mteval>'+'\n'+'<srcset setid="WMT08" srclang="Czech">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+
+    write_ref=open(path+file_title+'_ref.xml', 'w')
+    write_ref.write('<mteval>'+'\n'+'<refset setid="WMT08" srclang="Czech" trglang="English" refid="reference01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+
+    write_sys=open(path+file_title+'_sys.xml', 'w')
+    write_sys.write('<mteval>'+'\n'+'<tstset setid="WMT08" srclang="Czech" trglang="English" sysid="system01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
     id=1
     for line in read_train:
         parts=line.strip().split('\t')
         write_src.write('<p>'+'\n'+'<seg id="'+str(id)+'">'+' '+escape(parts[0])+' </seg>\n</p>\n')
+        write_ref.write('<p>'+'\n'+'<seg id="'+str(id)+'">'+' '+escape(parts[0])+' </seg>\n</p>\n')
+        write_sys.write('<p>'+'\n'+'<seg id="'+str(id)+'">'+' '+escape(parts[1])+' </seg>\n</p>\n')
         id+=1
     write_src.write('</doc>\n</srcset>\n</mteval>\n')
     write_src.close()
+    write_ref.write('</doc>\n</refset>\n</mteval>\n')
+    write_ref.close()
+    write_sys.write('</doc>\n</tstset>\n</mteval>\n')
+    write_sys.close()
     read_train.close()
+    '''
     #second, ref
     read_train=open(trainFile, 'r')
-    write_ref=open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/train_ref.xml', 'w')
+    write_ref=open(path+file_title+'_ref.xml', 'w')
     write_ref.write('<mteval>'+'\n'+'<refset setid="WMT08" srclang="Czech" trglang="English" refid="reference01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
     id=1
     for line in read_train:
@@ -223,7 +237,7 @@ def reform_for_bleu_nist(trainFile):#not useful
     read_train.close()     
     #third, sys
     read_train=open(trainFile, 'r')
-    write_sys=open('/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/train_sys.xml', 'w')
+    write_sys=open(path+file_title+'_sys.xml', 'w')
     write_sys.write('<mteval>'+'\n'+'<tstset setid="WMT08" srclang="Czech" trglang="English" sysid="system01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
     id=1
     for line in read_train:
@@ -232,34 +246,114 @@ def reform_for_bleu_nist(trainFile):#not useful
         id+=1
     write_sys.write('</doc>\n</tstset>\n</mteval>\n')
     write_sys.close()
-    read_train.close()        
-        
+    read_train.close()       
+    ''' 
+def reform_for_maxsim(path, trainFile, file_title):#not useful
+    #first src file
+    read_train=open(path+trainFile, 'r')
+    write_src=open(path+file_title+'_src.txt', 'w')
+    #write_src.write('<mteval>'+'\n'+'<srcset setid="WMT08" srclang="Czech">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+
+    write_ref=open(path+file_title+'_ref.txt', 'w')
+    #write_ref.write('<mteval>'+'\n'+'<refset setid="WMT08" srclang="Czech" trglang="English" refid="reference01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+
+    write_sys=open(path+file_title+'_sys.txt', 'w')
+    #write_sys.write('<mteval>'+'\n'+'<tstset setid="WMT08" srclang="Czech" trglang="English" sysid="system01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+    #id=1
+    for line in read_train:
+        parts=line.strip().split('\t')
+        write_src.write(parts[0]+'\n')
+        write_ref.write(parts[0]+'\n')
+        write_sys.write(parts[1]+'\n')
+        #id+=1
+    #write_src.write('</doc>\n</srcset>\n</mteval>\n')
+    write_src.close()
+    #write_ref.write('</doc>\n</refset>\n</mteval>\n')
+    write_ref.close()
+    #write_sys.write('</doc>\n</tstset>\n</mteval>\n')
+    write_sys.close()
+    read_train.close()
+    '''
+    #second, ref
+    read_train=open(trainFile, 'r')
+    write_ref=open(path+file_title+'_ref.xml', 'w')
+    write_ref.write('<mteval>'+'\n'+'<refset setid="WMT08" srclang="Czech" trglang="English" refid="reference01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+    id=1
+    for line in read_train:
+        parts=line.strip().split('\t')
+        write_ref.write('<p>'+'\n'+'<seg id="'+str(id)+'">'+' '+escape(parts[0])+' </seg>\n</p>\n')
+        id+=1
+    write_ref.write('</doc>\n</refset>\n</mteval>\n')
+    write_ref.close()
+    read_train.close()     
+    #third, sys
+    read_train=open(trainFile, 'r')
+    write_sys=open(path+file_title+'_sys.xml', 'w')
+    write_sys.write('<mteval>'+'\n'+'<tstset setid="WMT08" srclang="Czech" trglang="English" sysid="system01">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+    id=1
+    for line in read_train:
+        parts=line.strip().split('\t')
+        write_sys.write('<p>'+'\n'+'<seg id="'+str(id)+'">'+' '+escape(parts[1])+' </seg>\n</p>\n')
+        id+=1
+    write_sys.write('</doc>\n</tstset>\n</mteval>\n')
+    write_sys.close()
+    read_train.close()       
+    '''         
+
+def reform_for_terp(path, trainFile, file_title):#not useful
+    #first src file
+    read_train=open(path+trainFile, 'r')
+    #write_src=open(path+file_title+'_src.sgm', 'w')
+    #write_src.write('<mteval>'+'\n'+'<srcset setid="WMT08" srclang="Czech">'+'\n'+'<doc docid="train" genre="nw">'+'\n')
+
+    write_ref=open(path+file_title+'_ref.sgm', 'w')
+    write_ref.write('<refset setid="WMT08" srclang="Czech" trglang="English">'+'\n'+'<doc docid="train" genre="nw"  refid="reference01">'+'\n')
+
+    write_sys=open(path+file_title+'_sys.sgm', 'w')
+    write_sys.write('<tstset setid="WMT08" srclang="Czech" trglang="English">'+'\n'+'<doc docid="train" genre="nw"  sysid="system01">'+'\n')
+    id=1
+    for line in read_train:
+        parts=line.strip().split('\t')
+        #write_src.write('<seg id="'+str(id)+'">'+' '+escape(parts[0])+' </seg>\n')
+        write_ref.write('<seg id="'+str(id)+'">'+' '+escape(parts[0])+' </seg>\n')
+        write_sys.write('<seg id="'+str(id)+'">'+' '+escape(parts[1])+' </seg>\n')
+        id+=1
+    #write_src.write('</doc>\n</srcset>\n</mteval>\n')
+    #write_src.close()
+    write_ref.write('</doc>\n</refset>\n')
+    write_ref.close()
+    write_sys.write('</doc>\n</tstset>\n')
+    write_sys.close()
+    read_train.close()
+ 
 def putAllMtTogether():
-    pathroot='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST'
-    train_files=[#pathroot+'/result_train/BLEU1-seg.scr',
-                 #pathroot+'/result_train/BLEU2-seg.scr',pathroot+'/result_train/BLEU3-seg.scr',
-                 pathroot+'/result_train/BLEU4-seg.scr',
-                 #pathroot+'/result_train/NIST1-seg.scr',
-                 #pathroot+'/result_train/NIST2-seg.scr',
-                 #pathroot+'/result_train/NIST3-seg.scr',pathroot+'/result_train/NIST4-seg.scr',
-                 pathroot+'/result_train/NIST5-seg.scr'
+    pathroot='/mounts/data/proj/wenpeng/Dataset/SICK/'
+    train_files=[pathroot+'Train_MT/Badger-seg.scr', pathroot+'Train_MT/BLEU1-seg.scr',
+                 pathroot+'Train_MT/BLEU2-seg.scr',pathroot+'Train_MT/BLEU3-seg.scr',
+                 pathroot+'Train_MT/BLEU4-seg.scr',
+                 pathroot+'Train_MT/NIST1-seg.scr',pathroot+'Train_MT/NIST2-seg.scr',
+                 pathroot+'Train_MT/NIST3-seg.scr',pathroot+'Train_MT/NIST4-seg.scr',
+                 pathroot+'Train_MT/NIST5-seg.scr',
+                  pathroot+'Train_MT/maxsim.score',
+                 pathroot+'Train_MT/meteor.txt', pathroot+'Train_MT/sepia-seg.scr'
+                 #pathroot+'Train_MT/terpa.seg.scr'
                  ]
     
-    test_files=[#pathroot+'/result_test/BLEU1-seg.scr',
-                #pathroot+'/result_test/BLEU2-seg.scr',pathroot+'/result_test/BLEU3-seg.scr',
-                pathroot+'/result_test/BLEU4-seg.scr',
-                 #pathroot+'/result_test/NIST1-seg.scr',
-                 #pathroot+'/result_test/NIST2-seg.scr',
-                 #pathroot+'/result_test/NIST3-seg.scr',pathroot+'/result_test/NIST4-seg.scr',
-                 pathroot+'/result_test/NIST5-seg.scr',
-                  #pathroot+'maxsim-v1.01/paraphrase/test.score'
-                  ]
+    test_files=[pathroot+'Test_MT/Badger-seg.scr', pathroot+'Test_MT/BLEU1-seg.scr',
+                 pathroot+'Test_MT/BLEU2-seg.scr',pathroot+'Test_MT/BLEU3-seg.scr',
+                 pathroot+'Test_MT/BLEU4-seg.scr',
+                 pathroot+'Test_MT/NIST1-seg.scr',pathroot+'Test_MT/NIST2-seg.scr',
+                 pathroot+'Test_MT/NIST3-seg.scr',pathroot+'Test_MT/NIST4-seg.scr',
+                 pathroot+'Test_MT/NIST5-seg.scr',
+                  pathroot+'Test_MT/maxsim.score',
+                 pathroot+'Test_MT/meteor.txt', pathroot+'Test_MT/sepia-seg.scr'
+                 #pathroot+'Test_MT/terpa.seg.scr'
+                 ]
 
-    #posi=[4, 4,4,4,4,  4,4,4,4]
-    posi=[4, 4]
+    posi=[4, 4,4,4,4,  4,4,4,4,4,  1,3,4]#,4]
     size=len(posi)
     
-    train_write=open(pathroot+'/result_train/concate_2mt_train.txt', 'w')
+    train_write=open(pathroot+'/Train_MT/concate_13mt_train.txt', 'w')
     scores=[]
     for i in range(size):
         read_file=open(train_files[i], 'r')
@@ -277,7 +371,7 @@ def putAllMtTogether():
         train_write.write('\n')
     train_write.close()
     #test
-    test_write=open(pathroot+'/result_test/concate_2mt_test.txt', 'w')
+    test_write=open(pathroot+'/Test_MT/concate_13mt_test.txt', 'w')
     scores=[]
     for i in range(size):
         read_file=open(test_files[i], 'r')
@@ -412,17 +506,215 @@ def two_word_matching_methods(path, trainfile, testfile):
     write_test.close()    
     
     print 'two word matching values generated' 
+def test_mt_metrics(train_label, test_label):
+    #first load mt metrics
+    pathroot='/mounts/data/proj/wenpeng/Dataset/SICK/'
+    train_files=[
+                pathroot+'Train_MT/Badger-seg.scr', 
+#                  pathroot+'Train_MT/BLEU1-seg.scr',
+#                  pathroot+'Train_MT/BLEU2-seg.scr',
+#                  pathroot+'Train_MT/BLEU3-seg.scr',
+#                  pathroot+'Train_MT/BLEU4-seg.scr',
+                pathroot+'Train_MT/NIST1-seg.scr',
+                pathroot+'Train_MT/NIST2-seg.scr',
+                pathroot+'Train_MT/NIST3-seg.scr',
+                pathroot+'Train_MT/NIST4-seg.scr',
+                pathroot+'Train_MT/NIST5-seg.scr',
+                  pathroot+'Train_MT/maxsim.score',
+                 pathroot+'Train_MT/meteor.txt', 
+                 pathroot+'Train_MT/sepia-seg.scr'
+                 ]
+    
+    test_files=[
+                pathroot+'Test_MT/Badger-seg.scr', 
+#                 pathroot+'Test_MT/BLEU1-seg.scr',
+#                  pathroot+'Test_MT/BLEU2-seg.scr',
+#                  pathroot+'Test_MT/BLEU3-seg.scr',
+#                  pathroot+'Test_MT/BLEU4-seg.scr',
+                pathroot+'Test_MT/NIST1-seg.scr',
+                pathroot+'Test_MT/NIST2-seg.scr',
+                pathroot+'Test_MT/NIST3-seg.scr',
+                pathroot+'Test_MT/NIST4-seg.scr',
+                pathroot+'Test_MT/NIST5-seg.scr',
+                  pathroot+'Test_MT/maxsim.score',
+                 pathroot+'Test_MT/meteor.txt', 
+                 pathroot+'Test_MT/sepia-seg.scr'
+                 ]
+
+    posi=[
+        4,
+#            4,
+#            4,
+#            4,
+#            4,  
+            4,
+            4,
+            4,
+            4,
+            4,  
+           1,
+           3,
+           4
+           ]
+    size=len(posi)
+    
+    #train_write=open(pathroot+'/Train_MT/concate_14mt_train.txt', 'w')
+    scores=[]
+    for i in range(size):
+        read_file=open(train_files[i], 'r')
+        list_values=[]
+        for line in read_file:
+            tokens=line.strip().split()
+            list_values.append(tokens[posi[i]])
+        read_file.close()
+        scores.append(list_values)
+    train_matrix=numpy.array(scores).T
+    '''
+    col=values_matrix.shape[1]
+    for j in range(col):
+        for i in range(size):
+            train_write.write(values_matrix[i,j]+'\t')
+        train_write.write('\n')
+    train_write.close()
+    '''
+    #test
+    #test_write=open(pathroot+'/Test_MT/concate_14mt_test.txt', 'w')
+    scores=[]
+    for i in range(size):
+        read_file=open(test_files[i], 'r')
+        list_values=[]
+        for line in read_file:
+            tokens=line.strip().split()
+            list_values.append(tokens[posi[i]])
+        read_file.close()
+        scores.append(list_values)
+    test_matrix=numpy.array(scores).T
+    '''
+    col=values_matrix.shape[1]
+    for j in range(col):
+        for i in range(size):
+            test_write.write(values_matrix[i,j]+'\t')
+        test_write.write('\n')
+    test_write.close()
+    '''
+    print 'mts loaded over'           
+    
+    
+    
+    train_l=[]
+    read_file=open(train_label, 'r')
+    for line in read_file:
+        train_l.append(int(line.strip().split('\t')[2]))
+    read_file.close()
+    '''
+    read_file=open(train_values, 'r')
+    train_matrix=[]
+    for line in read_file:
+        train_matrix.append(map(float,line.strip().split()))
+    read_file.close()
+    '''
+    #test
+    test_l=[]
+    read_file=open(test_label, 'r')
+    for line in read_file:
+        test_l.append(int(line.strip().split('\t')[2]))
+    read_file.close()
+    '''
+    read_file=open(test_values, 'r')
+    test_matrix=[]
+    for line in read_file:
+        test_matrix.append(map(float,line.strip().split()))
+    read_file.close()
+    '''
+    
+    #svm
+    clf = svm.SVC(kernel='linear')#OneVsRestClassifier(LinearSVC()) #linear 76.11%, poly 75.19, sigmoid 66.50, rbf 73.33
+    clf.fit(train_matrix, train_l)
+    results=clf.predict(test_matrix)
+    corr_count=0
+    test_size=len(test_l)
+    for i in range(test_size):
+        if results[i]==test_l[i]:
+            corr_count+=1
+    acc=corr_count*1.0/test_size
+    print 'acc: ', acc, corr_count, '/', test_size    
+    '''
+    
+    #logistic regression
+    est=LinearRegression().fit(train_matrix, train_l)
+    results=est.predict(test_matrix)
+    corr_count=0
+    test_size=len(test_l)
+    for i in range(test_size):
+        if numpy.absolute(results[i]-test_l[i])<0.5:
+            corr_count+=1
+    acc=corr_count*1.0/test_size
+    print 'acc: ', acc, corr_count, '/', test_size   
+    '''
+    '''
+    #DecisionTreeClassifier
+    est=DecisionTreeClassifier().fit(train_matrix, train_l)
+    results=est.predict(test_matrix)
+    corr_count=0
+    test_size=len(test_l)
+    for i in range(test_size):
+        if results[i]==test_l[i]:
+            corr_count+=1
+    acc=corr_count*1.0/test_size
+    print 'acc: ', acc, corr_count, '/', test_size  
+    '''
+    '''
+    #KNeighborsClassifier
+    est=KNeighborsClassifier().fit(train_matrix, train_l)
+    results=est.predict(test_matrix)
+    corr_count=0
+    test_size=len(test_l)
+    for i in range(test_size):
+        if results[i]==test_l[i]:
+            corr_count+=1
+    acc=corr_count*1.0/test_size
+    print 'acc: ', acc, corr_count, '/', test_size      
+    '''
+    '''
+    #GaussianNB
+    est=GaussianNB().fit(train_matrix, train_l)
+    results=est.predict(test_matrix)
+    corr_count=0
+    test_size=len(test_l)
+    for i in range(test_size):
+        if results[i]==test_l[i]:
+            corr_count+=1
+    acc=corr_count*1.0/test_size
+    print 'acc: ', acc, corr_count, '/', test_size     
+    '''    
+def combine_train_trial(path, trainfile, devfile):
+    
+    readtrain=open(path+trainfile, 'r')
+    readdev=open(path+devfile, 'r')
+    writefile=open(path+'train_plus_dev.txt', 'w')
+    for line in readtrain:
+        writefile.write(line.strip()+'\n')
+    readtrain.close()
+    for line in readdev:
+        writefile.write(line.strip()+'\n')
+    readdev.close()
+    writefile.close()
+    
     
 if __name__ == '__main__':
     path='/mounts/data/proj/wenpeng/Dataset/SICK/'
     #extract_pairs(path, 'SICK.txt')
     #Extract_Vocab(path, 'train.txt', 'dev.txt', 'test.txt')
-    transcate_word2vec_into_entailment_vocab(path)
+    #transcate_word2vec_into_entailment_vocab(path)
     #compute_map_mrr(path+'test_filtered.txt')
-    #reform_for_bleu_nist(path+'WikiQA-train.txt')
+    #reform_for_bleu_nist(path, 'test.txt', 'test')
+    #reform_for_maxsim(path, 'train.txt', 'train')
+    #reform_for_terp(path, 'test.txt', 'test')
     #putAllMtTogether()
     #two_word_matching_methods(path, 'WikiQA-train.txt', 'test_filtered.txt')
-    #
+    #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
+    combine_train_trial(path, 'train.txt', 'dev.txt')
+    
     
 
 

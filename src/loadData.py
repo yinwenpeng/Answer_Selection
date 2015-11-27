@@ -522,35 +522,41 @@ def load_entailment_corpus(vocabFile, trainFile, testFile, max_truncate,maxlengt
         line_control=0
         for line in read_file:
             tokens=line.strip().split('\t')  # question, answer, label
-            Y.append(int(tokens[0])) 
-            #question
-            for i in [1,2]:
-                sent=[]
-                words=tokens[i].strip().lower().split()  
-                #true_lengths.append(len(words))
-                length=0
-                for word in words:
-                    id=word2id.get(word)
-                    if id is not None:
-                        sent.append(id)
-                        length+=1
-                        if length==max_truncate: #we consider max 43 words
-                            break
-                if length==0:
-                    print 'shit sentence: ', tokens[i]
-                    #exit(0)
+            question=tokens[1].strip().lower().split() 
+            answer=tokens[2].strip().lower().split()   
+            if len(question)>max_truncate or len(answer)>max_truncate or len(question)< 2 or len(answer)<2:
+                continue #skip this pair
+            else:
+                Y.append(int(tokens[0])) 
+                sents=[question, answer]
+                #question
+                for i in [0,1]:
+                    sent=[]
+                    words=sents[i]
+                    #true_lengths.append(len(words))
+                    length=0
+                    for word in words:
+                        id=word2id.get(word)
+                        if id is not None:
+                            sent.append(id)
+                            length+=1
+                            #if length==max_truncate: #we consider max 43 words
+                            #    break
+                    if length==0:
+                        print 'shit sentence: ', sents[i]
+                        #exit(0)
+                        break
+                    Lengths.append(length)
+                    left=(maxlength-length)/2
+                    right=maxlength-left-length
+                    leftPad.append(left)
+                    rightPad.append(right)
+     
+                    sent=[0]*left+sent+[0]*right
+                    data.append(sent)
+                line_control+=1
+                if line_control==10000:
                     break
-                Lengths.append(length)
-                left=(maxlength-length)/2
-                right=maxlength-left-length
-                leftPad.append(left)
-                rightPad.append(right)
- 
-                sent=[0]*left+sent+[0]*right
-                data.append(sent)
-            line_control+=1
-            if line_control==500:
-                break
         read_file.close()
         if len(Lengths)/2 !=len(Y):
             print 'len(Lengths)/2 !=len(Y)'
@@ -568,35 +574,39 @@ def load_entailment_corpus(vocabFile, trainFile, testFile, max_truncate,maxlengt
         rightPad=[]
         line_control=0
         for line in read_file:
-            tokens=line.strip().split('\t')
-            Y.append(int(tokens[0])) # make the label starts from 0 to 4
-            #Y.append(int(tokens[0]))
-            for i in [1,2]:
-                sent=[]
-                words=tokens[i].strip().lower().split()  
-                #true_lengths.append(len(words))
-                length=0
-                for word in words:
-                    id=word2id.get(word)
-                    if id is not None:
-                        sent.append(id)
-                        length+=1
-                        if length==max_truncate: #we consider max 43 words
-                            break
-                if length==0:
-                    print 'shit sentence: ', tokens[i]
-                    #exit(0)
-                    break
-                Lengths.append(length)
-                left=(maxlength-length)/2
-                right=maxlength-left-length
-                leftPad.append(left)
-                rightPad.append(right) 
-                sent=[0]*left+sent+[0]*right
-                data.append(sent)
-            line_control+=1
-            #if line_control==200:
-            #    break
+            tokens=line.strip().split('\t')  # question, answer, label
+            question=tokens[1].strip().lower().split() 
+            answer=tokens[2].strip().lower().split()   
+            if len(question)>max_truncate or len(answer)>max_truncate or len(question)< 2 or len(answer)<2:
+                continue #skip this pair
+            else:
+                Y.append(int(tokens[0])) 
+                sents=[question, answer]
+                for i in [0,1]:
+                    sent=[]
+                    words=sents[i]
+                    #true_lengths.append(len(words))
+                    length=0
+                    for word in words:
+                        id=word2id.get(word)
+                        if id is not None:
+                            sent.append(id)
+                            length+=1
+                    if length==0:
+                        print 'shit sentence: ', sents[i]
+                        #exit(0)
+                        break
+                    Lengths.append(length)
+                    left=(maxlength-length)/2
+                    right=maxlength-left-length
+                    leftPad.append(left)
+                    rightPad.append(right)
+     
+                    sent=[0]*left+sent+[0]*right
+                    data.append(sent)
+                line_control+=1
+                #if line_control==500:
+                #    break
         read_file.close()
         '''
         #normalized lengths
@@ -625,8 +635,8 @@ def load_entailment_corpus(vocabFile, trainFile, testFile, max_truncate,maxlengt
         shared_y = theano.shared(numpy.asarray(data_y,
                                                dtype=theano.config.floatX),  # @UndefinedVariable
                                  borrow=borrow)
-        #return T.cast(shared_y, 'int64')
-        return T.cast(shared_y, 'int32') # for gpu
+        return T.cast(shared_y, 'int64')
+        #return T.cast(shared_y, 'int32') # for gpu
         #return shared_y
 
 

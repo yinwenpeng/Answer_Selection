@@ -34,7 +34,10 @@ from preprocess_wikiQA import compute_map_mrr
 #need to change
 '''
 1) rouge score
-
+2) TF-KLD
+3) train+trial
+4) paragraph vector
+5) update word embeddings
 
 
 
@@ -42,7 +45,7 @@ Doesnt work:
 
 '''
 
-def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1, window_width=3,
                     maxSentLength=64, emb_size=300, hidden_size=200,
                     margin=0.5, L2_weight=0.0006, update_freq=1, norm_threshold=5.0, max_truncate=33):
     maxSentLength=max_truncate+2*(window_width-1)
@@ -53,7 +56,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=
     datasets, vocab_size=load_SICK_corpus(rootPath+'vocab.txt', rootPath+'train.txt', rootPath+'test.txt', max_truncate,maxSentLength, entailment=True)#vocab_size contain train, dev and test
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     #mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
-    #mt_train, mt_test=load_mts_wikiQA(mtPath+'result_train/concate_2mt_train.txt', mtPath+'result_test/concate_2mt_test.txt')
+    mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
@@ -123,7 +126,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=
     length_r=T.lscalar()
     norm_length_l=T.dscalar()
     norm_length_r=T.dscalar()
-    #mts=T.dmatrix()
+    mts=T.dmatrix()
     #wmf=T.dmatrix()
     cost_tmp=T.dscalar()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
@@ -179,13 +182,13 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=
     uni_cosine=cosine(sum_uni_l, sum_uni_r)
     aver_uni_cosine=cosine(aver_uni_l, aver_uni_r)
     uni_sigmoid_simi=debug_print(T.nnet.sigmoid(T.dot(norm_uni_l, norm_uni_r.T)).reshape((1,1)),'uni_sigmoid_simi')    
-    '''
-    linear=Linear(sum_uni_l, sum_uni_r)
-    poly=Poly(sum_uni_l, sum_uni_r)
-    sigmoid=Sigmoid(sum_uni_l, sum_uni_r)
-    rbf=RBF(sum_uni_l, sum_uni_r)
-    gesd=GESD(sum_uni_l, sum_uni_r)
-    '''
+    
+    linear=Linear(norm_uni_l, norm_uni_r)
+    poly=Poly(norm_uni_l, norm_uni_r)
+    sigmoid=Sigmoid(norm_uni_l, norm_uni_r)
+    rbf=RBF(norm_uni_l, norm_uni_r)
+    gesd=GESD(norm_uni_l, norm_uni_r)
+    
     eucli_1=1.0/(1.0+EUCLID(sum_uni_l, sum_uni_r))#25.2%
     #eucli_1_exp=1.0/T.exp(EUCLID(sum_uni_l, sum_uni_r))
     
@@ -199,15 +202,15 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=
     #length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
     #length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
-    layer3_input=T.concatenate([#mts,
-                                eucli_1,uni_cosine,#eucli_1,sum_uni_l,sum_uni_r,
-                                layer1.output_eucli_to_simi,layer1.output_cosine,  #layer1.output_eucli_to_simi,layer1.output_vector_l, layer1.output_vector_r,
+    layer3_input=T.concatenate([mts,
+                                eucli_1,uni_cosine,#linear, poly,sigmoid,rbf, gesd, #sum_uni_r-sum_uni_l,
+                                layer1.output_eucli_to_simi,layer1.output_cosine, #layer1.output_vector_r-layer1.output_vector_l,
                                 len_l, len_r,
                                 #wmf
                                 ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=(2)+(2)+2, n_out=3)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=14+(2)+(2)+2, n_out=3)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()++(embeddings**2).sum()
@@ -229,8 +232,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=
             length_l: testLengths_l[index],
             length_r: testLengths_r[index],
             norm_length_l: normalized_test_length_l[index],
-            norm_length_r: normalized_test_length_r[index]
-            #mts: mt_test[index: index + batch_size],
+            norm_length_r: normalized_test_length_r[index],
+            mts: mt_test[index: index + batch_size]
             #wmf: wm_test[index: index + batch_size]
             }, on_unused_input='ignore')
 
@@ -266,8 +269,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=
             length_l: trainLengths_l[index],
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
-            norm_length_r: normalized_train_length_r[index]
-            #mts: mt_train[index: index + batch_size],
+            norm_length_r: normalized_train_length_r[index],
+            mts: mt_train[index: index + batch_size]
             #wmf: wm_train[index: index + batch_size]
             }, on_unused_input='ignore')
 
@@ -283,8 +286,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=
             length_l: trainLengths_l[index],
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
-            norm_length_r: normalized_train_length_r[index]
-            #mts: mt_train[index: index + batch_size],
+            norm_length_r: normalized_train_length_r[index],
+            mts: mt_train[index: index + batch_size]
             #wmf: wm_train[index: index + batch_size]
             }, on_unused_input='ignore')
 
@@ -371,7 +374,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=
 
                 #write_file.close()
                 test_score = numpy.mean(test_losses)
-                print(('\t\t\t\t\t\tepoch %i, minibatch %i/%i, test acc of best '
+                print(('\t\t\tepoch %i, minibatch %i/%i, test acc of best '
                            'model %f %%') %
                           (epoch, minibatch_index, n_train_batches,
                            (1-test_score) * 100.))
@@ -392,25 +395,52 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[150], batch_size=
                 clf = svm.SVC(kernel='linear')#OneVsRestClassifier(LinearSVC()) #linear 76.11%, poly 75.19, sigmoid 66.50, rbf 73.33
                 clf.fit(train_features, train_y)
                 results=clf.predict(test_features)
-                lr=LinearRegression().fit(train_features, train_y)
-                results_lr=lr.predict(test_features)
+                #lr=LinearRegression().fit(train_features, train_y)
+                #results_lr=lr.predict(test_features)
                 corr_count=0
-                corr_lr=0
+                #corr_lr=0
+                corr_neu=0
+                neu_co=0
+                corr_ent=0
+                ent_co=0
+                corr_contr=0
+                contr_co=0
                 test_size=len(test_y)
                 for i in range(test_size):
+                    if test_y[i]==0:#NEUTRAL
+                        neu_co+=1
+                        if results[i]==test_y[i]:
+                            corr_neu+=1
+                    elif test_y[i]==1:#ENTAILMENT
+                        ent_co+=1
+                        if results[i]==test_y[i]:
+                            corr_ent+=1
+                    elif test_y[i]==2:#CONTRADICTION
+                        contr_co+=1
+                        if results[i]==test_y[i]:
+                            corr_contr+=1
+                    '''
                     if results[i]==test_y[i]:
                         corr_count+=1
-                    if numpy.absolute(results_lr[i]-test_y[i])<0.5:
-                        corr_lr+=1
+                        if test_y[i]==0: #NEUTRAL
+                            corr_neu+=1
+                    '''
+                        
+                    #if numpy.absolute(results_lr[i]-test_y[i])<0.5:
+                    #    corr_lr+=1
+                corr_count=corr_neu+corr_ent+corr_contr
                 acc=corr_count*1.0/test_size
-                acc_lr=corr_lr*1.0/test_size
+                acc_neu=corr_neu*1.0/neu_co
+                acc_ent=corr_ent*1.0/ent_co
+                acc_contr=corr_contr*1.0/contr_co
+                #acc_lr=corr_lr*1.0/test_size
                 if acc > max_acc:
                     max_acc=acc
                     best_epoch=epoch
-                if acc_lr> max_acc:
-                    max_acc=acc_lr
-                    best_epoch=epoch
-                print '\t\t\t\t\t\t\t\t\t\t\tsvm acc: ', acc, 'LR acc: ', acc_lr, ' max acc: ',    max_acc , ' at epoch: ', best_epoch  
+                #if acc_lr> max_acc:
+                #    max_acc=acc_lr
+                #    best_epoch=epoch
+                print '\t\t\tsvm acc: ', acc, ' max acc: ',    max_acc,'(at',best_epoch,')',' Neu: ',acc_neu, ' Ent: ',acc_ent, ' Contr: ',acc_contr 
 
             if patience <= iter:
                 done_looping = True
