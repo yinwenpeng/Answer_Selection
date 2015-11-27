@@ -4,6 +4,7 @@ from xml.sax.saxutils import escape
 from nltk.tokenize import TreebankWordTokenizer
 from sklearn import svm
 from scipy import spatial
+from numpy import linalg as LA
 
 def extract_pairs(path, inputfile):
     read_file=open(path+inputfile, 'r')
@@ -734,7 +735,7 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
     print 'word2vec loaded over...'
     
     readfile=open(path+inputfile, 'r')
-    writefile=open(path+title+'_rule_features.txt', 'w')
+    writefile=open(path+title+'_rule_features_cosine_eucli.txt', 'w')
     for line in readfile:
         parts=line.split('\t')
         sent1_emb= []
@@ -750,9 +751,15 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
                 if emb is not None:
                     sent2_emb.append(emb)  
         simi=0.0 # default if one is empty
+        eucli=0.0
         if len(sent1_emb) > 0 and len(sent2_emb) > 0:
             simi=1 - spatial.distance.cosine(numpy.sum(numpy.array(sent1_emb), axis=0), numpy.sum(numpy.array(sent2_emb), axis=0))
-        writefile.write(str(simi)+'\n')
+            eucli=1.0/(1.0+spatial.distance.euclidean(numpy.sum(numpy.array(sent1_emb), axis=0), numpy.sum(numpy.array(sent2_emb), axis=0)))
+        elif len(sent1_emb) > 0:
+            eucli=1.0/(1.0+LA.norm(numpy.sum(numpy.array(sent1_emb), axis=0)))
+        elif len(sent2_emb) > 0:
+            eucli=1.0/(1.0+LA.norm(numpy.sum(numpy.array(sent2_emb), axis=0)))
+        writefile.write(str(simi)+'\t'+str(eucli)+'\n')
     writefile.close()
     readfile.close()
                   
@@ -776,7 +783,7 @@ if __name__ == '__main__':
     #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
     #combine_train_trial(path, 'train.txt', 'dev.txt')
     #remove_overlap_words(path, 'train.txt', 'train')
-    features_for_nonoverlap_pairs(path, 'train_removed_overlap.txt', 'train')
+    features_for_nonoverlap_pairs(path, 'test_removed_overlap.txt', 'test')
     
     
 
