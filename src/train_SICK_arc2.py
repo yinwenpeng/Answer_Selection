@@ -38,6 +38,7 @@ from preprocess_wikiQA import compute_map_mrr
 3) train+trial
 4) paragraph vector
 5) update word embeddings
+6) tokenized sentences
 
 
 

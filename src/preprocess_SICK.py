@@ -700,6 +700,45 @@ def combine_train_trial(path, trainfile, devfile):
     readdev.close()
     writefile.close()
     
+def remove_overlap_words(path, inputfile, title):
+    readfile=open(path+inputfile, 'r')
+    writefile=open(path+title+'_removed_overlap.txt', 'w')
+    for line in readfile:
+        parts=line.strip().split('\t')
+        overlap=set(parts[0].split()).intersection(set(parts[1].split()))
+        sent1=''
+        for i in parts[0].split():
+            if i not in overlap:
+                sent1+=i+' '
+        sent2=''
+        for i in parts[1].split():
+            if i not in overlap:
+                sent2+=i+' '  
+        writefile.write(sent1.strip()+'\t'+sent2.strip()+'\t'+parts[2]+'\n')
+    readfile.close()
+    writefile.close()      
+                
+def features_for_nonoverlap_pairs(path, inputfile, title):
+    readFile=open('/mounts/data/proj/wenpeng/Dataset/word2vec_words_300d.txt', 'r')
+    dim=300
+    word2vec={}
+    for line in readFile:
+        tokens=line.strip().split()
+        if len(tokens)<dim+1:
+            continue
+        else:
+            word2vec[tokens[0]]=map(float, tokens[1:])
+    readFile.close()
+    print 'word2vec loaded over...'
+    readfile=open(path+inputfile, 'r')
+    writefile=open(path+title+'_rule_features.txt', 'w')
+    for line in readfile:
+        parts=line.strip().split('\t')
+        
+    
+    
+                    
+    
     
 if __name__ == '__main__':
     path='/mounts/data/proj/wenpeng/Dataset/SICK/'
@@ -713,7 +752,8 @@ if __name__ == '__main__':
     #putAllMtTogether()
     #two_word_matching_methods(path, 'WikiQA-train.txt', 'test_filtered.txt')
     #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
-    combine_train_trial(path, 'train.txt', 'dev.txt')
+    #combine_train_trial(path, 'train.txt', 'dev.txt')
+    #remove_overlap_words(path, 'train.txt', 'train')
     
     
 
