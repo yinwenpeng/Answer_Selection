@@ -735,7 +735,7 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
     print 'word2vec loaded over...'
     
     readfile=open(path+inputfile, 'r')
-    writefile=open(path+title+'_rule_features_cosine_eucli.txt', 'w')
+    writefile=open(path+title+'_rule_features_cosine_eucli_negation.txt', 'w')
     for line in readfile:
         parts=line.split('\t')
         sent1_emb= []
@@ -759,7 +759,14 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
             eucli=1.0/(1.0+LA.norm(numpy.sum(numpy.array(sent1_emb), axis=0)))
         elif len(sent2_emb) > 0:
             eucli=1.0/(1.0+LA.norm(numpy.sum(numpy.array(sent2_emb), axis=0)))
-        writefile.write(str(simi)+'\t'+str(eucli)+'\n')
+        
+        negation=0.0
+        sent_concate=parts[0].split()+parts[1].split()
+        #if ('no' in sent_concate or 'not' in sent_concate or 'nobody' in sent_concate or "isn't" in sent_concate) and (len(parts[0].strip().split()) < 5 and  len(parts[1].strip().split()) < 5  ):
+        if ('no' in sent_concate or 'not' in sent_concate or 'nobody' in sent_concate or "isn't" in sent_concate):
+            negation=1.0
+        
+        writefile.write(str(simi)+'\t'+str(eucli)+'\t'+str(negation)+'\n')
     writefile.close()
     readfile.close()
                   
@@ -783,7 +790,7 @@ if __name__ == '__main__':
     #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
     #combine_train_trial(path, 'train.txt', 'dev.txt')
     #remove_overlap_words(path, 'train.txt', 'train')
-    features_for_nonoverlap_pairs(path, 'test_removed_overlap.txt', 'test')
+    features_for_nonoverlap_pairs(path, 'train_removed_overlap.txt', 'train')
     
     
 

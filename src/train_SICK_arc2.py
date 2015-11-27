@@ -41,6 +41,8 @@ from preprocess_wikiQA import compute_map_mrr
 6) tokenized sentences : better
 7) only use non-overlap pairs 
 8) nonoverlap emb used average
+9) length of nonoverlap
+10) no not use mt metrics
 
 
 Doesnt work:
@@ -61,7 +63,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     #mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
     mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
-    extra_train, extra_test=load_extra_features(rootPath+'train_rule_features_cosine_eucli.txt', rootPath+'test_rule_features_cosine_eucli.txt')
+    extra_train, extra_test=load_extra_features(rootPath+'train_rule_features_cosine_eucli_negation.txt', rootPath+'test_rule_features_cosine_eucli_negation.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
@@ -217,7 +219,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
                                 ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=14+(2)+(2)+2+2, n_out=3)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=14+(2)+(2)+2+3, n_out=3)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()++(embeddings**2).sum()
