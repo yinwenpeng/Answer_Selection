@@ -3,6 +3,7 @@ from itertools import izip
 from xml.sax.saxutils import escape
 from nltk.tokenize import TreebankWordTokenizer
 from sklearn import svm
+from scipy import spatial
 
 def extract_pairs(path, inputfile):
     read_file=open(path+inputfile, 'r')
@@ -706,19 +707,20 @@ def remove_overlap_words(path, inputfile, title):
     for line in readfile:
         parts=line.strip().split('\t')
         overlap=set(parts[0].split()).intersection(set(parts[1].split()))
-        sent1=''
+        sent1=' '
         for i in parts[0].split():
             if i not in overlap:
                 sent1+=i+' '
-        sent2=''
+        sent2=' '
         for i in parts[1].split():
             if i not in overlap:
                 sent2+=i+' '  
-        writefile.write(sent1.strip()+'\t'+sent2.strip()+'\t'+parts[2]+'\n')
+        writefile.write(sent1+'\t'+sent2+'\t'+parts[2]+'\n')
     readfile.close()
     writefile.close()      
                 
 def features_for_nonoverlap_pairs(path, inputfile, title):
+    
     readFile=open('/mounts/data/proj/wenpeng/Dataset/word2vec_words_300d.txt', 'r')
     dim=300
     word2vec={}
@@ -730,10 +732,30 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
             word2vec[tokens[0]]=map(float, tokens[1:])
     readFile.close()
     print 'word2vec loaded over...'
+    
     readfile=open(path+inputfile, 'r')
     writefile=open(path+title+'_rule_features.txt', 'w')
     for line in readfile:
-        parts=line.strip().split('\t')
+        parts=line.split('\t')
+        sent1_emb= []
+        if len(parts[0].strip())>0:
+            for word in parts[0].split():
+                emb=word2vec.get(word)
+                if emb is not None:
+                    sent1_emb.append(emb)
+        sent2_emb= []
+        if len(parts[1].strip())>0:
+            for word in parts[1].split():
+                emb=word2vec.get(word)
+                if emb is not None:
+                    sent2_emb.append(emb)  
+        simi=0.0 # default if one is empty
+        if len(sent1_emb) > 0 and len(sent2_emb) > 0:
+            simi=1 - spatial.distance.cosine(numpy.sum(numpy.array(sent1_emb), axis=0), numpy.sum(numpy.array(sent2_emb), axis=0))
+        writefile.write(str(simi)+'\n')
+    writefile.close()
+    readfile.close()
+                  
         
     
     
@@ -754,6 +776,7 @@ if __name__ == '__main__':
     #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
     #combine_train_trial(path, 'train.txt', 'dev.txt')
     #remove_overlap_words(path, 'train.txt', 'train')
+    features_for_nonoverlap_pairs(path, 'train_removed_overlap.txt', 'train')
     
     
 

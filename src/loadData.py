@@ -328,6 +328,24 @@ def load_mts_wikiQA(train_file, test_file):
     
     return train_values, test_values
 
+def load_extra_features(train_file, test_file):
+    read_train=open(train_file, 'r')
+    train_values=[]
+    for line in read_train:
+        tokens=map(float, line.strip().split())
+        train_values.append(tokens)
+    read_train.close()
+    read_test=open(test_file, 'r')
+    test_values=[]
+    for line in read_test:
+        tokens=map(float, line.strip().split())
+        test_values.append(tokens)
+    read_test.close()
+    
+    train_values=theano.shared(numpy.asarray(train_values, dtype=theano.config.floatX), borrow=True)
+    test_values=theano.shared(numpy.asarray(test_values, dtype=theano.config.floatX), borrow=True)
+    
+    return train_values, test_values
 def load_wmf_wikiQA(train_file, test_file):
     read_train=open(train_file, 'r')
     train_values=[]

@@ -17,7 +17,7 @@ from WPDefined import ConvFoldPoolLayer, dropout_from_layer, shared_dataset, rep
 from cis.deep.utils.theano import debug_print
 from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
-from loadData import load_SICK_corpus, load_word2vec_to_init, load_mts_wikiQA, load_wmf_wikiQA
+from loadData import load_SICK_corpus, load_word2vec_to_init, load_mts_wikiQA, load_wmf_wikiQA, load_extra_features
 from word2embeddings.nn.util import zero_value, random_value_normal
 from common_functions import Conv_with_input_para, Average_Pooling_for_Top, create_conv_para
 from random import shuffle
@@ -58,6 +58,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     #mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
     mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
+    extra_train, extra_test=load_extra_features(rootPath+'train_rule_features.txt', rootPath+'test_rule_features.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
@@ -128,6 +129,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
     norm_length_l=T.dscalar()
     norm_length_r=T.dscalar()
     mts=T.dmatrix()
+    extra=T.dmatrix()
     #wmf=T.dmatrix()
     cost_tmp=T.dscalar()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
@@ -207,11 +209,12 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
                                 eucli_1,uni_cosine,#linear, poly,sigmoid,rbf, gesd, #sum_uni_r-sum_uni_l,
                                 layer1.output_eucli_to_simi,layer1.output_cosine, #layer1.output_vector_r-layer1.output_vector_l,
                                 len_l, len_r,
+                                extra
                                 #wmf
                                 ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=14+(2)+(2)+2, n_out=3)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=14+(2)+(2)+2+1, n_out=3)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()++(embeddings**2).sum()
@@ -234,7 +237,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
             length_r: testLengths_r[index],
             norm_length_l: normalized_test_length_l[index],
             norm_length_r: normalized_test_length_r[index],
-            mts: mt_test[index: index + batch_size]
+            mts: mt_test[index: index + batch_size],
+            extra: extra_test[index: index + batch_size]
             #wmf: wm_test[index: index + batch_size]
             }, on_unused_input='ignore')
 
@@ -271,7 +275,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
             norm_length_r: normalized_train_length_r[index],
-            mts: mt_train[index: index + batch_size]
+            mts: mt_train[index: index + batch_size],
+            extra: extra_train[index: index + batch_size]
             #wmf: wm_train[index: index + batch_size]
             }, on_unused_input='ignore')
 
@@ -288,7 +293,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
             norm_length_r: normalized_train_length_r[index],
-            mts: mt_train[index: index + batch_size]
+            mts: mt_train[index: index + batch_size],
+            extra: extra_train[index: index + batch_size]
             #wmf: wm_train[index: index + batch_size]
             }, on_unused_input='ignore')
 
