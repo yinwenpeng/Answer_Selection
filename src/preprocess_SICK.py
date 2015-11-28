@@ -770,8 +770,124 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
     writefile.close()
     readfile.close()
                   
+def analysis(vector):
+    sum=numpy.sum(vector)
+    normalized_v=numpy.array([1.0/3, 1.0/3, 1.0/3])
+    if sum > 0.0:
+        normalized_v=vector/sum
+    std=numpy.std(normalized_v)
+    return std, normalized_v
+            
+def discriminative_weights(path, trainfile, testfile):
+    #load word index
+    '''
+    vocabfile=open(path+'vocab.txt', 'r')
+    word2id={}
+    for line in vocabfile:
+        parts=line.strip().split()
+        word2id[parts[1]]=int(parts[0])
+    vocabfile.close()
+    '''
+    #
+    train_pairs=[]
+    pair2co_list={}
+    readtrain=open(path+trainfile, 'r')
+    for line in readtrain:
+        parts=line.split('\t')
+        sent1=parts[0].strip().split()
+        sent2=parts[1].strip().split()
+        label=parts[2].strip()
+        pair_set=set()
+        if len(sent1)>0 and len(sent2)>0:
+            for i in sent1:
+                for j in sent2:
+                    pair_set.add((i,j))
+        elif len(sent1)==0 and len(sent2)>0:
+            for j in sent2:
+                pair_set.add(('<empty>',j))
+        elif len(sent2)==0 and len(sent1)>0:
+            for i in sent1:
+                pair_set.add((i,'<empty>'))
+        else: # both are empty
+            pair_set.add(('<empty>','<empty>'))
         
+        train_pairs.append(pair_set)
+        for pair in pair_set:
+            listt=pair2co_list.get(pair)
+            if listt is None:
+                listt=numpy.zeros(3)
+            
+            if label == '0':
+                listt[0]+=1.0
+            elif label=='1':
+                listt[1]+=1.0
+            else:
+                listt[2]+=1.0
+            pair2co_list[pair]=listt
+        #print pair2co_list
+        #exit(0)
+    readtrain.close()
+    #now, start to form train features
+    writetrain=open(path+'train_discri_features.txt', 'w')
+    for pair_set in train_pairs:
+        #print pair_set
+        #exit(0)
+        pair_sum=[]
+        for pair in pair_set:
+            #print pair, pair2co_list.get(pair)
+            discri_w, distribu=analysis(pair2co_list.get(pair))
+            #print discri_w, distribu
+            pair_sum.append(discri_w*distribu)
+        #exit(0)
+        pair_sum=numpy.sum(numpy.array(pair_sum), axis=0)
+        #writetrain.write(' '.join(map(str,pair_sum))+'\n')
+        writetrain.write(str(numpy.argmax(pair_sum))+'\n')
+    writetrain.close()
+    #now, start to form test features
+    #test_pairs=[]
+    #pair2co_list={}
+    writetest=open(path+'test_discri_features.txt', 'w')
+    readtest=open(path+testfile, 'r')
+    for line in readtest:
+        parts=line.split('\t')
+        sent1=parts[0].strip().split()
+        sent2=parts[1].strip().split()
+        #label=parts[2].strip()
+        pair_set=set()
+        if len(sent1)>0 and len(sent2)>0:
+            for i in sent1:
+                for j in sent2:
+                    pair_set.add((i,j))
+        elif len(sent1)==0 and len(sent2)>0:
+            for j in sent2:
+                pair_set.add(('<empty>',j))
+        elif len(sent2)==0 and len(sent1)>0:
+            for i in sent1:
+                pair_set.add((i,'<empty>'))
+        else: # both are empty
+            pair_set.add(('<empty>','<empty>'))
+        
+        #train_pairs.append(pair_set)
+        pair_sum=[]
+        for pair in pair_set:
+            listt=pair2co_list.get(pair)
+            if listt is None:
+                continue
+            else:
+                discri_w, distribu=analysis(listt)
+                pair_sum.append(discri_w*distribu)
+        if len(pair_sum)==0:#all pairs are unknown
+            pair_sum.append(numpy.array([1.0/3, 1.0/3,1.0/3]))
+        pair_sum=numpy.sum(numpy.array(pair_sum), axis=0)       
+        #writetest.write(' '.join(map(str,pair_sum))+'\n')    
+        #writetrain.write(' '.join(map(str,pair_sum))+'\n')
+        writetest.write(str(numpy.argmax(pair_sum))+'\n')    
     
+    readtest.close()
+    writetest.close()
+     
+                    
+        
     
                     
     
@@ -790,7 +906,8 @@ if __name__ == '__main__':
     #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
     #combine_train_trial(path, 'train.txt', 'dev.txt')
     #remove_overlap_words(path, 'train.txt', 'train')
-    features_for_nonoverlap_pairs(path, 'train_removed_overlap.txt', 'train')
+    features_for_nonoverlap_pairs(path, 'test_removed_overlap.txt', 'test')
+    #discriminative_weights(path, 'train_removed_overlap.txt', 'test_removed_overlap.txt')
     
     
 

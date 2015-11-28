@@ -42,18 +42,18 @@ from preprocess_wikiQA import compute_map_mrr
 7) only use non-overlap pairs 
 8) nonoverlap emb used average
 9) length of nonoverlap
-10) no not use mt metrics
+
 
 
 Doesnt work:
 3) train+trial
-
+10) no not use mt metrics
 
 '''
 
 def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1, window_width=3,
                     maxSentLength=64, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.0006, update_freq=1, norm_threshold=5.0, max_truncate=33):
+                    margin=0.5, L2_weight=0.0007, update_freq=1, norm_threshold=5.0, max_truncate=33):
     maxSentLength=max_truncate+2*(window_width-1)
     model_options = locals().copy()
     print "model options", model_options
@@ -64,6 +64,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
     #mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
     mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
     extra_train, extra_test=load_extra_features(rootPath+'train_rule_features_cosine_eucli_negation.txt', rootPath+'test_rule_features_cosine_eucli_negation.txt')
+    discri_train, discri_test=load_extra_features(rootPath+'train_discri_features.txt', rootPath+'test_discri_features.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
@@ -135,6 +136,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
     norm_length_r=T.dscalar()
     mts=T.dmatrix()
     extra=T.dmatrix()
+    discri=T.dmatrix()
     #wmf=T.dmatrix()
     cost_tmp=T.dscalar()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
@@ -215,6 +217,7 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
                                 layer1.output_eucli_to_simi,layer1.output_cosine, #layer1.output_vector_r-layer1.output_vector_l,
                                 len_l, len_r,
                                 extra
+                                #discri
                                 #wmf
                                 ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
@@ -243,7 +246,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
             norm_length_l: normalized_test_length_l[index],
             norm_length_r: normalized_test_length_r[index],
             mts: mt_test[index: index + batch_size],
-            extra: extra_test[index: index + batch_size]
+            extra: extra_test[index: index + batch_size],
+            discri:discri_test[index: index + batch_size]
             #wmf: wm_test[index: index + batch_size]
             }, on_unused_input='ignore')
 
@@ -281,7 +285,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
             norm_length_l: normalized_train_length_l[index],
             norm_length_r: normalized_train_length_r[index],
             mts: mt_train[index: index + batch_size],
-            extra: extra_train[index: index + batch_size]
+            extra: extra_train[index: index + batch_size],
+            discri:discri_train[index: index + batch_size]
             #wmf: wm_train[index: index + batch_size]
             }, on_unused_input='ignore')
 
@@ -299,7 +304,8 @@ def evaluate_lenet5(learning_rate=0.06, n_epochs=2000, nkerns=[44], batch_size=1
             norm_length_l: normalized_train_length_l[index],
             norm_length_r: normalized_train_length_r[index],
             mts: mt_train[index: index + batch_size],
-            extra: extra_train[index: index + batch_size]
+            extra: extra_train[index: index + batch_size],
+            discri:discri_train[index: index + batch_size]
             #wmf: wm_train[index: index + batch_size]
             }, on_unused_input='ignore')
 
