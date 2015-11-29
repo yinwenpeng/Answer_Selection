@@ -949,9 +949,9 @@ if __name__ == '__main__':
     #Extract_Vocab(path, 'train.txt', 'dev.txt', 'test.txt')
     #transcate_word2vec_into_entailment_vocab(path)
     #compute_map_mrr(path+'test_filtered.txt')
-    #reform_for_bleu_nist(path, 'test.txt', 'test')
-    #reform_for_maxsim(path, 'train.txt', 'train')
-    #reform_for_terp(path, 'test.txt', 'test')
+    #reform_for_bleu_nist(path, 'train_plus_dev.txt', 'train_plus_dev')
+    #reform_for_maxsim(path, 'train_plus_dev.txt', 'train_plus_dev')
+    reform_for_terp(path, 'train_plus_dev.txt', 'train_plus_dev')
     #putAllMtTogether()
     #two_word_matching_methods(path, 'WikiQA-train.txt', 'test_filtered.txt')
     #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
@@ -961,7 +961,7 @@ if __name__ == '__main__':
     #discriminative_weights(path, 'train_removed_overlap.txt', 'test_removed_overlap.txt')
     #use_nonoverlap_dataset(path, 'train_removed_overlap.txt', 'test_removed_overlap.txt') #maxlength 24
     #Extract_Vocab(path, 'train_removed_overlap_as_training.txt', 'train_removed_overlap_as_training.txt', 'test_removed_overlap_as_training.txt')
-    transcate_word2vec_into_entailment_vocab(path)
+    #transcate_word2vec_into_entailment_vocab(path)
     
 
 
