@@ -70,7 +70,7 @@ def Extract_Vocab(path, train, dev, test):
     print 'word2vec vocab loaded over...'    
     '''
     files=[train, dev, test]
-    writeFile=open(path+'vocab.txt', 'w')
+    writeFile=open(path+'vocab_nonoverlap.txt', 'w')
     vocab={}
     count=0
     max_length=0 # result 32
@@ -106,8 +106,8 @@ def transcate_word2vec_into_entailment_vocab(rootPath):
             word2vec[tokens[0]]=map(float, tokens[1:])
     readFile.close()
     print 'word2vec loaded over...'
-    readFile=open(rootPath+'vocab.txt', 'r')
-    writeFile=open(rootPath+'vocab_lower_in_word2vec_embs_300d.txt', 'w')
+    readFile=open(rootPath+'vocab_nonoverlap.txt', 'r')
+    writeFile=open(rootPath+'vocab_nonoverlap_in_word2vec_embs_300d.txt', 'w')
     random_emb=list(numpy.random.uniform(-0.01,0.01,dim))
     for line in readFile:
         tokens=line.strip().split()
@@ -735,7 +735,7 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
     print 'word2vec loaded over...'
     
     readfile=open(path+inputfile, 'r')
-    writefile=open(path+title+'_rule_features_cosine_eucli_negation_len1_len2.txt', 'w')
+    writefile=open(path+title+'_rule_features_cosine_eucli_negation_len1_len2(c)_digit.txt', 'w')
     for line in readfile:
         parts=line.split('\t')
         sent1_emb= []
@@ -765,9 +765,14 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
         #if ('no' in sent_concate or 'not' in sent_concate or 'nobody' in sent_concate or "isn't" in sent_concate) and (len(parts[0].strip().split()) < 5 and  len(parts[1].strip().split()) < 5  ):
         if ('no' in sent_concate or 'not' in sent_concate or 'nobody' in sent_concate or "isn't" in sent_concate):
             negation=1.0
-        len1=len(parts[0].strip())
-        len2=len(parts[1].strip())
-        writefile.write(str(simi)+'\t'+str(eucli)+'\t'+str(negation)+'\t'+str(len1)+'\t'+str(len2)+'\n')
+        digit=0.0
+        if ('one' in sent_concate or 'two' in sent_concate or 'three' in sent_concate or 'four' in sent_concate or 'five' in sent_concate):
+            digit=1.0
+        #len1_w=len(parts[0].strip().split())
+        #len2_w=len(parts[1].strip().split())
+        len1_c=len(parts[0].strip())
+        len2_c=len(parts[1].strip())
+        writefile.write(str(simi)+'\t'+str(eucli)+'\t'+str(negation)+'\t'+str(len1_c)+'\t'+str(len2_c)+'\t'+str(digit)+'\n')
     writefile.close()
     readfile.close()
                   
@@ -780,15 +785,18 @@ def analysis(vector):
     return std, normalized_v
             
 def discriminative_weights(path, trainfile, testfile):
-    #load word index
-    '''
-    vocabfile=open(path+'vocab.txt', 'r')
-    word2id={}
-    for line in vocabfile:
-        parts=line.strip().split()
-        word2id[parts[1]]=int(parts[0])
-    vocabfile.close()
-    '''
+    #load word embeddings
+    readFile=open('/mounts/data/proj/wenpeng/Dataset/word2vec_words_300d.txt', 'r')
+    dim=300
+    word2vec={}
+    for line in readFile:
+        tokens=line.strip().split()
+        if len(tokens)<dim+1:
+            continue
+        else:
+            word2vec[tokens[0]]=map(float, tokens[1:])
+    readFile.close()
+    print 'word2vec loaded over...'
     #
     train_pairs=[]
     pair2co_list={}
@@ -829,7 +837,7 @@ def discriminative_weights(path, trainfile, testfile):
         #exit(0)
     readtrain.close()
     #now, start to form train features
-    writetrain=open(path+'train_discri_features.txt', 'w')
+    writetrain=open(path+'train_discri_features_0.3.txt', 'w')
     for pair_set in train_pairs:
         #print pair_set
         #exit(0)
@@ -837,17 +845,24 @@ def discriminative_weights(path, trainfile, testfile):
         for pair in pair_set:
             #print pair, pair2co_list.get(pair)
             discri_w, distribu=analysis(pair2co_list.get(pair))
-            #print discri_w, distribu
+            emb1=word2vec.get(pair[0])
+            emb2=word2vec.get(pair[1])
+            if emb1 is not None and emb2 is not None:
+                discri_w=1 - spatial.distance.cosine(emb1, emb2)
+                if discri_w < 0.3: # we only consider really related words
+                    discri_w=0.0
+            else:
+                discri_w=1.0
             pair_sum.append(discri_w*distribu)
         #exit(0)
         pair_sum=numpy.sum(numpy.array(pair_sum), axis=0)
-        #writetrain.write(' '.join(map(str,pair_sum))+'\n')
-        writetrain.write(str(numpy.argmax(pair_sum))+'\n')
+        writetrain.write(' '.join(map(str,pair_sum))+'\n')
+        #writetrain.write(str(numpy.argmax(pair_sum))+'\n')
     writetrain.close()
     #now, start to form test features
     #test_pairs=[]
     #pair2co_list={}
-    writetest=open(path+'test_discri_features.txt', 'w')
+    writetest=open(path+'test_discri_features_0.3.txt', 'w')
     readtest=open(path+testfile, 'r')
     for line in readtest:
         parts=line.split('\t')
@@ -876,19 +891,54 @@ def discriminative_weights(path, trainfile, testfile):
                 continue
             else:
                 discri_w, distribu=analysis(listt)
+                emb1=word2vec.get(pair[0])
+                emb2=word2vec.get(pair[1])
+                if emb1 is not None and emb2 is not None:
+                    discri_w=1 - spatial.distance.cosine(emb1, emb2)
+                    if discri_w < 0.3: # we only consider really related words
+                        discri_w=0.0
+                else:
+                    discri_w=1.0
                 pair_sum.append(discri_w*distribu)
         if len(pair_sum)==0:#all pairs are unknown
-            pair_sum.append(numpy.array([1.0/3, 1.0/3,1.0/3]))
+            pair_sum.append(numpy.array([0.56, 0.28,0.16]))
         pair_sum=numpy.sum(numpy.array(pair_sum), axis=0)       
-        #writetest.write(' '.join(map(str,pair_sum))+'\n')    
-        #writetrain.write(' '.join(map(str,pair_sum))+'\n')
-        writetest.write(str(numpy.argmax(pair_sum))+'\n')    
+        writetest.write(' '.join(map(str,pair_sum))+'\n')    
+        #writetest.write(str(numpy.argmax(pair_sum))+'\n')    
     
     readtest.close()
     writetest.close()
      
                     
+def use_nonoverlap_dataset(path, trainfile, testfile):
+    readtrain=open(path+trainfile, 'r')
+    writetrain=open(path+'train_removed_overlap_as_training.txt', 'w')
+    for line in readtrain:
+        parts=line.split('\t')
+        sent1=parts[0].strip()
+        sent2=parts[1].strip()
+        if len(sent1) ==0:
+            sent1='<empty>'
+        if len(sent2)==0:
+            sent2='<empty>'
+        writetrain.write(sent1+'\t'+sent2+'\t'+parts[2].strip()+'\n')
+    writetrain.close()
+    readtrain.close()    
+    readtest=open(path+testfile, 'r')
+    writetest=open(path+'test_removed_overlap_as_training.txt', 'w')
+    for line in readtest:
+        parts=line.split('\t')
+        sent1=parts[0].strip()
+        sent2=parts[1].strip()
+        if len(sent1) ==0:
+            sent1='<empty>'
+        if len(sent2)==0:
+            sent2='<empty>'
+        writetest.write(sent1+'\t'+sent2+'\t'+parts[2].strip()+'\n')
+    writetest.close()
+    readtest.close()         
         
+            
     
                     
     
@@ -907,9 +957,11 @@ if __name__ == '__main__':
     #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
     #combine_train_trial(path, 'train.txt', 'dev.txt')
     #remove_overlap_words(path, 'train.txt', 'train')
-    features_for_nonoverlap_pairs(path, 'train_removed_overlap.txt', 'train')
+    #features_for_nonoverlap_pairs(path, 'train_removed_overlap.txt', 'train')
     #discriminative_weights(path, 'train_removed_overlap.txt', 'test_removed_overlap.txt')
-    
+    #use_nonoverlap_dataset(path, 'train_removed_overlap.txt', 'test_removed_overlap.txt') #maxlength 24
+    #Extract_Vocab(path, 'train_removed_overlap_as_training.txt', 'train_removed_overlap_as_training.txt', 'test_removed_overlap_as_training.txt')
+    transcate_word2vec_into_entailment_vocab(path)
     
 
 

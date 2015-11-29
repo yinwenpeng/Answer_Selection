@@ -41,7 +41,8 @@ from preprocess_wikiQA import compute_map_mrr
 6) tokenized sentences : better
 7) only use non-overlap pairs 
 
-9) length of nonoverlap
+9) length of nonoverlap : better
+
 
 
 
@@ -50,23 +51,24 @@ Doesnt work:
 10) no not use mt metrics
 5) update word embeddings
 8) nonoverlap emb used average
+10) delete original sentence lengths
 
 '''
 
 def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1, window_width=3,
                     maxSentLength=64, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.0006, update_freq=1, norm_threshold=5.0, max_truncate=33):
+                    margin=0.5, L2_weight=0.0006, update_freq=1, norm_threshold=5.0, max_truncate=24):
     maxSentLength=max_truncate+2*(window_width-1)
     model_options = locals().copy()
     print "model options", model_options
     rootPath='/mounts/data/proj/wenpeng/Dataset/SICK/';
     rng = numpy.random.RandomState(23455)
-    datasets, vocab_size=load_SICK_corpus(rootPath+'vocab.txt', rootPath+'train.txt', rootPath+'test.txt', max_truncate,maxSentLength, entailment=True)#vocab_size contain train, dev and test
+    datasets, vocab_size=load_SICK_corpus(rootPath+'vocab_nonoverlap.txt', rootPath+'train_removed_overlap_as_training.txt', rootPath+'test_removed_overlap_as_training.txt', max_truncate,maxSentLength, entailment=True)#vocab_size contain train, dev and test
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     #mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
     mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
     extra_train, extra_test=load_extra_features(rootPath+'train_rule_features_cosine_eucli_negation_len1_len2.txt', rootPath+'test_rule_features_cosine_eucli_negation_len1_len2.txt')
-    discri_train, discri_test=load_extra_features(rootPath+'train_discri_features.txt', rootPath+'test_discri_features.txt')
+    discri_train, discri_test=load_extra_features(rootPath+'train_discri_features_0.3.txt', rootPath+'test_discri_features_0.3.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
@@ -116,8 +118,8 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
     rand_values=random_value_normal((vocab_size+1, emb_size), theano.config.floatX, numpy.random.RandomState(1234))
     rand_values[0]=numpy.array(numpy.zeros(emb_size),dtype=theano.config.floatX)
     #rand_values[0]=numpy.array([1e-50]*emb_size)
-    rand_values=load_word2vec_to_init(rand_values, rootPath+'vocab_lower_in_word2vec_embs_300d.txt')
     #rand_values=load_word2vec_to_init(rand_values, rootPath+'vocab_lower_in_word2vec_embs_300d.txt')
+    rand_values=load_word2vec_to_init(rand_values, rootPath+'vocab_nonoverlap_in_word2vec_embs_300d.txt')
     embeddings=theano.shared(value=rand_values, borrow=True)      
     
     #cost_tmp=0
@@ -394,10 +396,10 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
 
                 #write_file.close()
                 test_score = numpy.mean(test_losses)
+                test_acc=1-test_score
                 print(('\t\t\tepoch %i, minibatch %i/%i, test acc of best '
                            'model %f %%') %
-                          (epoch, minibatch_index, n_train_batches,
-                           (1-test_score) * 100.))
+                          (epoch, minibatch_index, n_train_batches,test_acc * 100.))
                 #now, see the results of LR
                 #write_feature=open(rootPath+'feature_check.txt', 'w')
                 
@@ -457,6 +459,9 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                 if acc > max_acc:
                     max_acc=acc
                     best_epoch=epoch
+                if test_acc > max_acc:
+                    max_acc=test_acc
+                    best_epoch=epoch                 
                 #if acc_lr> max_acc:
                 #    max_acc=acc_lr
                 #    best_epoch=epoch
