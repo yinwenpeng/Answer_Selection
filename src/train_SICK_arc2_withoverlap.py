@@ -25,7 +25,7 @@ from random import shuffle
 from sklearn import svm
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.svm import LinearSVC
-from sklearn.linear_model import LinearRegression
+from sklearn import linear_model
 
 from scipy import linalg, mat, dot
 
@@ -39,7 +39,7 @@ from preprocess_wikiQA import compute_map_mrr
 4) paragraph vector
 
 6) tokenized sentences : better
-7) only use non-overlap pairs 
+7) only use non-overlap pairs: comparable
 
 9) length of nonoverlap : better
 
@@ -64,13 +64,13 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
     print "model options", model_options
     rootPath='/mounts/data/proj/wenpeng/Dataset/SICK/';
     rng = numpy.random.RandomState(23455)
-    datasets, vocab_size=load_SICK_corpus(rootPath+'vocab.txt', rootPath+'train.txt', rootPath+'test.txt', max_truncate,maxSentLength, entailment=True)#vocab_size contain train, dev and test
-    datasets_nonoverlap, vocab_size_nonoverlap=load_SICK_corpus(rootPath+'vocab_nonoverlap.txt', rootPath+'train_removed_overlap_as_training.txt', rootPath+'test_removed_overlap_as_training.txt', max_truncate_nonoverlap,maxSentLength_nonoverlap, entailment=True)
+    datasets, vocab_size=load_SICK_corpus(rootPath+'vocab.txt', rootPath+'train_plus_dev.txt', rootPath+'test.txt', max_truncate,maxSentLength, entailment=True)#vocab_size contain train, dev and test
+    datasets_nonoverlap, vocab_size_nonoverlap=load_SICK_corpus(rootPath+'vocab_nonoverlap_train_plus_dev.txt', rootPath+'train_plus_dev_removed_overlap_as_training.txt', rootPath+'test_removed_overlap_as_training.txt', max_truncate_nonoverlap,maxSentLength_nonoverlap, entailment=True)
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     #mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
-    mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
-    extra_train, extra_test=load_extra_features(rootPath+'train_rule_features_cosine_eucli_negation_len1_len2.txt', rootPath+'test_rule_features_cosine_eucli_negation_len1_len2.txt')
-    discri_train, discri_test=load_extra_features(rootPath+'train_discri_features_0.3.txt', rootPath+'test_discri_features_0.3.txt')
+    mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_plus_dev_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
+    extra_train, extra_test=load_extra_features(rootPath+'train_plus_dev_rule_features_cosine_eucli_negation_len1_len2.txt', rootPath+'test_rule_features_cosine_eucli_negation_len1_len2.txt')
+    discri_train, discri_test=load_extra_features(rootPath+'train_plus_dev_discri_features_0.3.txt', rootPath+'test_discri_features_0.3.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
@@ -172,7 +172,7 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
     rand_values_nonoverlap=random_value_normal((vocab_size_nonoverlap+1, emb_size), theano.config.floatX, numpy.random.RandomState(1234))
     rand_values_nonoverlap[0]=numpy.array(numpy.zeros(emb_size),dtype=theano.config.floatX)
     #rand_values[0]=numpy.array([1e-50]*emb_size)
-    rand_values_nonoverlap=load_word2vec_to_init(rand_values_nonoverlap, rootPath+'vocab_nonoverlap_in_word2vec_embs_300d.txt')
+    rand_values_nonoverlap=load_word2vec_to_init(rand_values_nonoverlap, rootPath+'vocab_nonoverlap_train_plus_dev_in_word2vec_embs_300d.txt')
     #rand_values=load_word2vec_to_init(rand_values, rootPath+'vocab_lower_in_word2vec_embs_300d.txt')
     embeddings_nonoverlap=theano.shared(value=rand_values_nonoverlap, borrow=True)  
     
@@ -561,10 +561,11 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                 clf = svm.SVC(kernel='linear')#OneVsRestClassifier(LinearSVC()) #linear 76.11%, poly 75.19, sigmoid 66.50, rbf 73.33
                 clf.fit(train_features, train_y)
                 results=clf.predict(test_features)
-                #lr=LinearRegression().fit(train_features, train_y)
-                #results_lr=lr.predict(test_features)
+                lr=linear_model.LogisticRegression(C=1e5)
+                lr.fit(train_features, train_y)
+                results_lr=lr.predict(test_features)
                 corr_count=0
-                #corr_lr=0
+                corr_lr=0
                 corr_neu=0
                 neu_co=0
                 corr_ent=0
@@ -573,6 +574,8 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                 contr_co=0
                 test_size=len(test_y)
                 for i in range(test_size):
+                    if results_lr[i]==test_y[i]:
+                        corr_lr+=1
                     if test_y[i]==0:#NEUTRAL
                         neu_co+=1
                         if results[i]==test_y[i]:
@@ -585,12 +588,7 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                         contr_co+=1
                         if results[i]==test_y[i]:
                             corr_contr+=1
-                    '''
-                    if results[i]==test_y[i]:
-                        corr_count+=1
-                        if test_y[i]==0: #NEUTRAL
-                            corr_neu+=1
-                    '''
+
                         
                     #if numpy.absolute(results_lr[i]-test_y[i])<0.5:
                     #    corr_lr+=1
@@ -599,17 +597,17 @@ def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1
                 acc_neu=corr_neu*1.0/neu_co
                 acc_ent=corr_ent*1.0/ent_co
                 acc_contr=corr_contr*1.0/contr_co
-                #acc_lr=corr_lr*1.0/test_size
+                acc_lr=corr_lr*1.0/test_size
                 if acc > max_acc:
                     max_acc=acc
                     best_epoch=epoch
                 if test_acc > max_acc:
                     max_acc=test_acc
                     best_epoch=epoch                 
-                #if acc_lr> max_acc:
-                #    max_acc=acc_lr
-                #    best_epoch=epoch
-                print '\t\t\tsvm acc: ', acc, ' max acc: ',    max_acc,'(at',best_epoch,')',' Neu: ',acc_neu, ' Ent: ',acc_ent, ' Contr: ',acc_contr 
+                if acc_lr> max_acc:
+                    max_acc=acc_lr
+                    best_epoch=epoch
+                print '\t\t\tsvm:', acc, 'lr:', acc_lr, 'max:',    max_acc,'(at',best_epoch,')','Neu:',acc_neu, 'Ent:',acc_ent, 'Contr:',acc_contr 
 
             if patience <= iter:
                 done_looping = True

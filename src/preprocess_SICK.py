@@ -70,7 +70,7 @@ def Extract_Vocab(path, train, dev, test):
     print 'word2vec vocab loaded over...'    
     '''
     files=[train, dev, test]
-    writeFile=open(path+'vocab_nonoverlap.txt', 'w')
+    writeFile=open(path+'vocab_nonoverlap_train_plus_dev.txt', 'w')
     vocab={}
     count=0
     max_length=0 # result 32
@@ -106,8 +106,8 @@ def transcate_word2vec_into_entailment_vocab(rootPath):
             word2vec[tokens[0]]=map(float, tokens[1:])
     readFile.close()
     print 'word2vec loaded over...'
-    readFile=open(rootPath+'vocab_nonoverlap.txt', 'r')
-    writeFile=open(rootPath+'vocab_nonoverlap_in_word2vec_embs_300d.txt', 'w')
+    readFile=open(rootPath+'vocab_nonoverlap_train_plus_dev.txt', 'r')
+    writeFile=open(rootPath+'vocab_nonoverlap_train_plus_dev_in_word2vec_embs_300d.txt', 'w')
     random_emb=list(numpy.random.uniform(-0.01,0.01,dim))
     for line in readFile:
         tokens=line.strip().split()
@@ -330,15 +330,15 @@ def reform_for_terp(path, trainFile, file_title):#not useful
  
 def putAllMtTogether():
     pathroot='/mounts/data/proj/wenpeng/Dataset/SICK/'
-    train_files=[pathroot+'Train_MT/Badger-seg.scr', pathroot+'Train_MT/BLEU1-seg.scr',
-                 pathroot+'Train_MT/BLEU2-seg.scr',pathroot+'Train_MT/BLEU3-seg.scr',
-                 pathroot+'Train_MT/BLEU4-seg.scr',
-                 pathroot+'Train_MT/NIST1-seg.scr',pathroot+'Train_MT/NIST2-seg.scr',
-                 pathroot+'Train_MT/NIST3-seg.scr',pathroot+'Train_MT/NIST4-seg.scr',
-                 pathroot+'Train_MT/NIST5-seg.scr',
-                  pathroot+'Train_MT/maxsim.score',
-                 pathroot+'Train_MT/meteor.txt', pathroot+'Train_MT/sepia-seg.scr'
-                 #pathroot+'Train_MT/terpa.seg.scr'
+    train_files=[pathroot+'Train_plus_dev_MT/Badger-seg.scr', pathroot+'Train_plus_dev_MT/BLEU1-seg.scr',
+                 pathroot+'Train_plus_dev_MT/BLEU2-seg.scr',pathroot+'Train_plus_dev_MT/BLEU3-seg.scr',
+                 pathroot+'Train_plus_dev_MT/BLEU4-seg.scr',
+                 pathroot+'Train_plus_dev_MT/NIST1-seg.scr',pathroot+'Train_plus_dev_MT/NIST2-seg.scr',
+                 pathroot+'Train_plus_dev_MT/NIST3-seg.scr',pathroot+'Train_plus_dev_MT/NIST4-seg.scr',
+                 pathroot+'Train_plus_dev_MT/NIST5-seg.scr',
+                  pathroot+'Train_plus_dev_MT/maxsim.score',
+                 pathroot+'Train_plus_dev_MT/meteor.txt', pathroot+'Train_plus_dev_MT/sepia-seg.scr',
+                 pathroot+'Train_plus_dev_MT/terpa.seg.scr'
                  ]
     
     test_files=[pathroot+'Test_MT/Badger-seg.scr', pathroot+'Test_MT/BLEU1-seg.scr',
@@ -348,14 +348,14 @@ def putAllMtTogether():
                  pathroot+'Test_MT/NIST3-seg.scr',pathroot+'Test_MT/NIST4-seg.scr',
                  pathroot+'Test_MT/NIST5-seg.scr',
                   pathroot+'Test_MT/maxsim.score',
-                 pathroot+'Test_MT/meteor.txt', pathroot+'Test_MT/sepia-seg.scr'
-                 #pathroot+'Test_MT/terpa.seg.scr'
+                 pathroot+'Test_MT/meteor.txt', pathroot+'Test_MT/sepia-seg.scr',
+                 pathroot+'Test_MT/terpa.seg.scr'
                  ]
 
-    posi=[4, 4,4,4,4,  4,4,4,4,4,  1,3,4]#,4]
+    posi=[4, 4,4,4,4,  4,4,4,4,4,  1,3,4,4]
     size=len(posi)
     
-    train_write=open(pathroot+'/Train_MT/concate_13mt_train.txt', 'w')
+    train_write=open(pathroot+'/Train_plus_dev_MT/concate_14mt_train.txt', 'w')
     scores=[]
     for i in range(size):
         read_file=open(train_files[i], 'r')
@@ -373,7 +373,8 @@ def putAllMtTogether():
         train_write.write('\n')
     train_write.close()
     #test
-    test_write=open(pathroot+'/Test_MT/concate_13mt_test.txt', 'w')
+    '''
+    test_write=open(pathroot+'/Test_MT/concate_14mt_test.txt', 'w')
     scores=[]
     for i in range(size):
         read_file=open(test_files[i], 'r')
@@ -390,6 +391,7 @@ def putAllMtTogether():
             test_write.write(values_matrix[i,j]+'\t')
         test_write.write('\n')
     test_write.close()
+    '''
     print 'finished'            
 
 def two_word_matching_methods(path, trainfile, testfile):
@@ -735,7 +737,7 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
     print 'word2vec loaded over...'
     
     readfile=open(path+inputfile, 'r')
-    writefile=open(path+title+'_rule_features_cosine_eucli_negation_len1_len2(c)_digit.txt', 'w')
+    writefile=open(path+title+'_rule_features_cosine_eucli_negation_len1_len2.txt', 'w')
     for line in readfile:
         parts=line.split('\t')
         sent1_emb= []
@@ -772,7 +774,7 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
         #len2_w=len(parts[1].strip().split())
         len1_c=len(parts[0].strip())
         len2_c=len(parts[1].strip())
-        writefile.write(str(simi)+'\t'+str(eucli)+'\t'+str(negation)+'\t'+str(len1_c)+'\t'+str(len2_c)+'\t'+str(digit)+'\n')
+        writefile.write(str(simi)+'\t'+str(eucli)+'\t'+str(negation)+'\t'+str(len1_c)+'\t'+str(len2_c)+'\n')
     writefile.close()
     readfile.close()
                   
@@ -837,7 +839,7 @@ def discriminative_weights(path, trainfile, testfile):
         #exit(0)
     readtrain.close()
     #now, start to form train features
-    writetrain=open(path+'train_discri_features_0.3.txt', 'w')
+    writetrain=open(path+'train_plus_dev_discri_features_0.3.txt', 'w')
     for pair_set in train_pairs:
         #print pair_set
         #exit(0)
@@ -862,6 +864,7 @@ def discriminative_weights(path, trainfile, testfile):
     #now, start to form test features
     #test_pairs=[]
     #pair2co_list={}
+    '''
     writetest=open(path+'test_discri_features_0.3.txt', 'w')
     readtest=open(path+testfile, 'r')
     for line in readtest:
@@ -908,11 +911,11 @@ def discriminative_weights(path, trainfile, testfile):
     
     readtest.close()
     writetest.close()
-     
+    '''
                     
 def use_nonoverlap_dataset(path, trainfile, testfile):
     readtrain=open(path+trainfile, 'r')
-    writetrain=open(path+'train_removed_overlap_as_training.txt', 'w')
+    writetrain=open(path+'train_plus_dev_removed_overlap_as_training.txt', 'w')
     for line in readtrain:
         parts=line.split('\t')
         sent1=parts[0].strip()
@@ -924,6 +927,7 @@ def use_nonoverlap_dataset(path, trainfile, testfile):
         writetrain.write(sent1+'\t'+sent2+'\t'+parts[2].strip()+'\n')
     writetrain.close()
     readtrain.close()    
+    '''
     readtest=open(path+testfile, 'r')
     writetest=open(path+'test_removed_overlap_as_training.txt', 'w')
     for line in readtest:
@@ -937,7 +941,7 @@ def use_nonoverlap_dataset(path, trainfile, testfile):
         writetest.write(sent1+'\t'+sent2+'\t'+parts[2].strip()+'\n')
     writetest.close()
     readtest.close()         
-        
+    '''    
             
     
                     
@@ -951,16 +955,16 @@ if __name__ == '__main__':
     #compute_map_mrr(path+'test_filtered.txt')
     #reform_for_bleu_nist(path, 'train_plus_dev.txt', 'train_plus_dev')
     #reform_for_maxsim(path, 'train_plus_dev.txt', 'train_plus_dev')
-    reform_for_terp(path, 'train_plus_dev.txt', 'train_plus_dev')
-    #putAllMtTogether()
+    #reform_for_terp(path, 'train_plus_dev.txt', 'train_plus_dev')
+    putAllMtTogether()
     #two_word_matching_methods(path, 'WikiQA-train.txt', 'test_filtered.txt')
     #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
     #combine_train_trial(path, 'train.txt', 'dev.txt')
-    #remove_overlap_words(path, 'train.txt', 'train')
-    #features_for_nonoverlap_pairs(path, 'train_removed_overlap.txt', 'train')
-    #discriminative_weights(path, 'train_removed_overlap.txt', 'test_removed_overlap.txt')
-    #use_nonoverlap_dataset(path, 'train_removed_overlap.txt', 'test_removed_overlap.txt') #maxlength 24
-    #Extract_Vocab(path, 'train_removed_overlap_as_training.txt', 'train_removed_overlap_as_training.txt', 'test_removed_overlap_as_training.txt')
+    #remove_overlap_words(path, 'train_plus_dev.txt', 'train_plus_dev')
+    #features_for_nonoverlap_pairs(path, 'train_plus_dev_removed_overlap.txt', 'train_plus_dev')
+    #discriminative_weights(path, 'train_plus_dev_removed_overlap.txt', 'test_removed_overlap.txt')
+    #use_nonoverlap_dataset(path, 'train_plus_dev_removed_overlap.txt', 'test_removed_overlap.txt') #maxlength 24, maxlentsh for train plus dev is also 24
+    #Extract_Vocab(path, 'train_plus_dev_removed_overlap_as_training.txt', 'train_plus_dev_removed_overlap_as_training.txt', 'test_removed_overlap_as_training.txt')
     #transcate_word2vec_into_entailment_vocab(path)
     
 
