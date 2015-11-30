@@ -5,6 +5,8 @@ from nltk.tokenize import TreebankWordTokenizer
 from sklearn import svm
 from scipy import spatial
 from numpy import linalg as LA
+from nltk.corpus import wordnet as wn
+import collections
 
 def extract_pairs(path, inputfile):
     read_file=open(path+inputfile, 'r')
@@ -735,9 +737,25 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
             word2vec[tokens[0]]=map(float, tokens[1:])
     readFile.close()
     print 'word2vec loaded over...'
-    
+
+    syn_set=set()
+    hyper_set=set()    
+    anto_set=set()
+    read_syn=open(path+'synonyms.txt', 'r')
+    for line in read_syn:
+        syn_set.add((line.strip().split()[0], line.strip().split()[1]))
+    read_syn.close()
+    read_hyper=open(path+'hypernyms.txt', 'r')
+    for line in read_hyper:
+        hyper_set.add((line.strip().split()[0], line.strip().split()[1]))
+    read_hyper.close()
+    read_anto=open(path+'antonyms.txt', 'r')
+    for line in read_anto:
+        anto_set.add((line.strip().split()[0], line.strip().split()[1]))
+    read_anto.close()
+            
     readfile=open(path+inputfile, 'r')
-    writefile=open(path+title+'_rule_features_cosine_eucli_negation_len1_len2.txt', 'w')
+    writefile=open(path+title+'_rule_features_cosine_eucli_negation_len1_len2_syn_hyper1_hyper2_anto(newsimi0.4).txt', 'w')
     for line in readfile:
         parts=line.split('\t')
         sent1_emb= []
@@ -774,7 +792,27 @@ def features_for_nonoverlap_pairs(path, inputfile, title):
         #len2_w=len(parts[1].strip().split())
         len1_c=len(parts[0].strip())
         len2_c=len(parts[1].strip())
-        writefile.write(str(simi)+'\t'+str(eucli)+'\t'+str(negation)+'\t'+str(len1_c)+'\t'+str(len2_c)+'\n')
+        #synonym and hypernym, antonyms
+
+        num_syn=0.0
+        num_hyp1=0.0
+        num_hyp2=0.0
+        num_ant=0.0
+        sent1=parts[0].strip().split()
+        sent2=parts[1].strip().split()
+        if len(sent1)>0 and len(sent2)>0:
+            for token1 in sent1:
+                for token2 in sent2:
+                    if (token1, token2) in syn_set or (token2, token1) in syn_set:
+                        num_syn+=1
+                    if (token1,token2) in hyper_set:
+                        num_hyp1+=1
+                    if (token2,token1) in hyper_set:
+                        num_hyp2+=1
+                    if (token1,token2) in anto_set or (token2,token1) in anto_set:
+                        num_ant+=1
+                
+        writefile.write(str(simi)+'\t'+str(eucli)+'\t'+str(negation)+'\t'+str(len1_c)+'\t'+str(len2_c)+'\t'+str(num_syn)+'\t'+str(num_hyp1)+'\t'+str(num_hyp2)+'\t'+str(num_ant)+'\n')
     writefile.close()
     readfile.close()
                   
@@ -944,7 +982,109 @@ def use_nonoverlap_dataset(path, trainfile, testfile):
     '''    
             
     
-                    
+def extract_synonyms_for_token(token):
+    synonyms_dog=[]
+    for synset in wn.synsets(token):
+        synonyms_dog+=synset.lemma_names()            
+    return set(synonyms_dog)        
+
+def extract_hypernyms_for_token(token):
+    results=[]
+    synsetss=wn.synsets(token)
+    if len(synsetss)>0:
+        apple = synsetss[0]
+        hyperapple = set([i for i in apple.closure(lambda s:s.hypernyms())])
+        for word in hyperapple:
+            results+=word.lemma_names()
+    return results                   
+
+def syn_relation(token1, token2):
+    syn1=extract_synonyms_for_token(token1)
+    syn2=extract_synonyms_for_token(token2)
+    #print syn1
+    #print syn2
+    if token1 in syn2 or token2 in syn1:
+        return True
+    else:
+        return False
+def hyper_relation(token1, token2):
+    hyper1=extract_hypernyms_for_token(token1)
+    if token2 in hyper1:
+        return True
+    else:
+        return False
+
+def extract_synonyms_hypernyms_antonyms(path, trainfile, testfile):
+    readtrain=open(path+trainfile, 'r')
+    readtest=open(path+testfile, 'r')
+    writesyn=open(path+'synonyms.txt', 'w')
+    writehyper=open(path+'hypernyms.txt', 'w')
+    writeanto=open(path+'antonyms.txt', 'w')
+    pair_train=set()
+    pair_train_entail=set()
+    pair_train_nonentail=set()
+    pair_train_freq=collections.defaultdict(int)
+    pair_test=set()
+    syn_set=set()
+    hyper_set=set()
+    for line in readtrain:
+        parts=line.split('\t')
+        sent1=parts[0].strip().split()
+        sent2=parts[1].strip().split()
+        if len(sent1) >0 and len(sent2) >0:
+            for token1 in sent1:
+                for token2 in sent2:
+                    pair_train.add((token1, token2))
+                    if parts[2]=='1':
+                        pair_train_entail.add((token1, token2))
+                    else:
+                        pair_train_nonentail.add((token1, token2))
+                    pair_train_freq[(token1,token2)]+=1
+    readtrain.close()
+    for line in readtest:
+        parts=line.split('\t')
+        sent1=parts[0].strip().split()
+        sent2=parts[1].strip().split()
+        if len(sent1) >0 and len(sent2) >0:
+            for token1 in sent1:
+                for token2 in sent2:
+                    pair_test.add((token1, token2))
+    readtest.close()
+    #filter
+    both_set=pair_train | pair_test
+    for (token1,token2) in both_set:
+        if syn_relation(token1, token2):
+            syn_set.add((token1, token2))
+            writesyn.write(token1+'\t'+token2+'\n')
+        if hyper_relation(token1, token2):
+            hyper_set.add((token1, token2))
+            writehyper.write(token1+'\t'+token2+'\n')
+    writesyn.close()
+    writehyper.close()
+    readFile=open('/mounts/data/proj/wenpeng/Dataset/word2vec_words_300d.txt', 'r')
+    dim=300
+    word2vec={}
+    for line in readFile:
+        tokens=line.strip().split()
+        if len(tokens)<dim+1:
+            continue
+        else:
+            word2vec[tokens[0]]=map(float, tokens[1:])
+    readFile.close()
+    print 'word2vec loaded over...'
+    possible_anto=pair_train_nonentail-pair_train_entail-syn_set-hyper_set
+    for (token1,token2) in possible_anto:
+        if pair_train_freq.get((token1,token2))>=2:
+            emb1=word2vec.get(token1)
+            emb2=word2vec.get(token2)
+            if emb1 is not None and emb2 is not None:
+                simi=1 - spatial.distance.cosine(emb1, emb2)
+                if simi>0.4:
+                    writeanto.write(token1+'\t'+token2+'\n')
+    writeanto.close()
+    print 'over'
+        
+    
     
     
 if __name__ == '__main__':
@@ -956,16 +1096,17 @@ if __name__ == '__main__':
     #reform_for_bleu_nist(path, 'train_plus_dev.txt', 'train_plus_dev')
     #reform_for_maxsim(path, 'train_plus_dev.txt', 'train_plus_dev')
     #reform_for_terp(path, 'train_plus_dev.txt', 'train_plus_dev')
-    putAllMtTogether()
+    #putAllMtTogether()
     #two_word_matching_methods(path, 'WikiQA-train.txt', 'test_filtered.txt')
     #test_mt_metrics(path+'train.txt',  path+'test.txt') # found terp is not helpful
     #combine_train_trial(path, 'train.txt', 'dev.txt')
     #remove_overlap_words(path, 'train_plus_dev.txt', 'train_plus_dev')
-    #features_for_nonoverlap_pairs(path, 'train_plus_dev_removed_overlap.txt', 'train_plus_dev')
+    features_for_nonoverlap_pairs(path, 'test_removed_overlap.txt', 'test')
     #discriminative_weights(path, 'train_plus_dev_removed_overlap.txt', 'test_removed_overlap.txt')
     #use_nonoverlap_dataset(path, 'train_plus_dev_removed_overlap.txt', 'test_removed_overlap.txt') #maxlength 24, maxlentsh for train plus dev is also 24
     #Extract_Vocab(path, 'train_plus_dev_removed_overlap_as_training.txt', 'train_plus_dev_removed_overlap_as_training.txt', 'test_removed_overlap_as_training.txt')
     #transcate_word2vec_into_entailment_vocab(path)
+    #extract_synonyms_hypernyms_antonyms(path, 'train_plus_dev_removed_overlap_as_training.txt', 'test_removed_overlap_as_training.txt')
     
 
 
