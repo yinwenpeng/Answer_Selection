@@ -55,7 +55,7 @@ Doesnt work:
 
 '''
 
-def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[44], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.08, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=64, emb_size=300, hidden_size=200,
                     margin=0.5, L2_weight=0.0006, update_freq=1, norm_threshold=5.0, max_truncate=33, max_truncate_nonoverlap=24):
     maxSentLength=max_truncate+2*(window_width-1)
