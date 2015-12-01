@@ -55,7 +55,7 @@ Doesnt work:
 
 '''
 
-def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=64, emb_size=300, hidden_size=200,
                     margin=0.5, L2_weight=0.00065, update_freq=1, norm_threshold=5.0, max_truncate=33, max_truncate_nonoverlap=24):
     maxSentLength=max_truncate+2*(window_width-1)
@@ -69,7 +69,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[50], batch_size=
     #datasets, vocab_size=load_wikiQA_corpus(rootPath+'vocab_lower_in_word2vec.txt', rootPath+'WikiQA-train.txt', rootPath+'test_filtered.txt', maxSentLength)#vocab_size contain train, dev and test
     #mtPath='/mounts/data/proj/wenpeng/Dataset/WikiQACorpus/MT/BLEU_NIST/'
     mt_train, mt_test=load_mts_wikiQA(rootPath+'Train_plus_dev_MT/concate_14mt_train.txt', rootPath+'Test_MT/concate_14mt_test.txt')
-    extra_train, extra_test=load_extra_features(rootPath+'train_plus_dev_rule_features_cosine_eucli_negation_len1_len2_syn_hyper1_hyper2_anto(simi0.4).txt', rootPath+'test_rule_features_cosine_eucli_negation_len1_len2_syn_hyper1_hyper2_anto(simi0.4).txt')
+    extra_train, extra_test=load_extra_features(rootPath+'train_plus_dev_rule_features_cosine_eucli_negation_len1_len2_syn_hyper1_hyper2_anto(newsimi0.4).txt', rootPath+'test_rule_features_cosine_eucli_negation_len1_len2_syn_hyper1_hyper2_anto(newsimi0.4).txt')
     discri_train, discri_test=load_extra_features(rootPath+'train_plus_dev_discri_features_0.3.txt', rootPath+'test_discri_features_0.3.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores.txt', rootPath+'test_word_matching_scores.txt')
     #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_word_matching_scores_normalized.txt', rootPath+'test_word_matching_scores_normalized.txt')

@@ -1,7 +1,7 @@
 import numpy
 from itertools import izip
 from xml.sax.saxutils import escape
-from nltk.tokenize import TreebankWordTokenizer
+#from nltk.tokenize import TreebankWordTokenizer
 from sklearn import svm
 from scipy import spatial
 from numpy import linalg as LA
