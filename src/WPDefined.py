@@ -688,45 +688,30 @@ def conv_WP(inputs, filters_W, filter_shape, image_shape):
     new_filter_shape=(filter_shape[0], filter_shape[1], 1, filter_shape[3])
     conv_outs=[]
 
-    for i in range(image_shape[2]):
+    for i in range(image_shape[2]):#each dimension
         conv_out_i=conv.conv2d(input=inputs, filters=filters_W[:,:,i:(i+1),:],filter_shape=new_filter_shape, image_shape=image_shape, border_mode='full')
         conv_outs.append(conv_out_i[:,:,i:(i+1),:])
     overall_conv_out=T.concatenate(conv_outs, axis=2)
     
     return overall_conv_out
-class Conv_Fold_DynamicK_PoolLayer(object):
+class Conv_Fold_DynamicK_PoolLayer_NAACL(object):
     """Pool Layer of a convolutional network """
     
         
-    def __init__(self, rng, input, filter_shape, image_shape, poolsize=(2, 2), k=[], unifiedWidth=30, left=[], right=[], firstLayer=True):
+    def __init__(self, rng, input, filter_shape, image_shape, poolsize=(2, 2), k=8, unifiedWidth=30, left=3, right=3, W=2, b=2, firstLayer=True):
         
         assert image_shape[1] == filter_shape[1]
         self.input = input
 
-        # there are "num input feature maps * filter height * filter width"
-        # inputs to each hidden unit
-        fan_in = numpy.prod(filter_shape[1:])
-        # each unit in the lower layer receives a gradient from:
-        # "num output feature maps * filter height * filter width" /
-        #   pooling size
-        fan_out = (filter_shape[0] * numpy.prod(filter_shape[2:]) /
-                   numpy.prod(poolsize))
-        # initialize weights with random weights
-        W_bound = numpy.sqrt(6. / (fan_in + fan_out))
         # the original one
         
-        self.W = theano.shared(numpy.asarray(
-            rng.uniform(low=-W_bound, high=W_bound, size=filter_shape),
-            dtype=theano.config.floatX), borrow=True)
-        '''
-        self.W = theano.shared(value=numpy.zeros(filter_shape,
-                                                 dtype=theano.config.floatX),  # @UndefinedVariable
-                                name='W', borrow=True)
-        '''
+        self.W = W
+        self.b = b
+
         # the bias is a 1D tensor -- one bias per output feature map
-        b_values = numpy.zeros((filter_shape[2]/2,1), dtype=theano.config.floatX)
-        self.b = theano.shared(value=b_values, borrow=True)
-        bb=T.repeat(self.b, unifiedWidth, axis=1)
+        #b_values = numpy.zeros((image_shape[2]/2,1), dtype=theano.config.floatX)
+        #self.b = theano.shared(value=b_values, borrow=True)
+        #bb=T.repeat(self.b, unifiedWidth, axis=1)
         conv_out=  conv_WP(inputs=input, filters_W=self.W, filter_shape=filter_shape, image_shape=image_shape)
         # convolve input feature maps with filters
         #conv_out = conv.conv2d(input=input, filters=self.W,
@@ -740,51 +725,51 @@ class Conv_Fold_DynamicK_PoolLayer(object):
         odd_matrix=matrix[0:matrix_shape[0]:2]
         even_matrix=matrix[1:matrix_shape[0]:2]
         raw_folded_matrix=(odd_matrix+even_matrix)*0.5
-        
+        '''
         out_shape=T.cast(T.join(0,  conv_out.shape[:-2],
                             T.as_tensor([conv_out.shape[2]/2]),
                             T.as_tensor([conv_out.shape[3]])),
                             'int64')
         fold_out=T.reshape(raw_folded_matrix, out_shape, ndim=4)
+        '''
         
+        #padded_matrices=[]
+        #for i in range(image_shape[0]): # image_shape[0] is actually batch_size
+        #neighborsForPooling = TSN.images2neibs(ten4=fold_out[i:(i+1)], neib_shape=(1,fold_out.shape[3]), mode='ignore_borders')
+        #wenpeng1=theano.printing.Print('original')(neighborsForPooling[:, 25:35])
+        self.fold_output=raw_folded_matrix.reshape((self.input.shape[0], filter_shape[0], self.input.shape[2]/2, poolsize[1]))
+        non_zeros=raw_folded_matrix[:,left:-right] # only consider non-zero elements
         
-        padded_matrices=[]
-        for i in range(image_shape[0]): # image_shape[0] is actually batch_size
-            neighborsForPooling = TSN.images2neibs(ten4=fold_out[i:(i+1)], neib_shape=(1,fold_out.shape[3]), mode='ignore_borders')
-            #wenpeng1=theano.printing.Print('original')(neighborsForPooling[:, 25:35])
+        #wenpeng2=theano.printing.Print('non-zeros')(non_zeros)
 
-            non_zeros=neighborsForPooling[:,left[i]:(neighborsForPooling.shape[1]-right[i])] # only consider non-zero elements
-            #wenpeng2=theano.printing.Print('non-zeros')(non_zeros)
+        neighborsArgSorted = T.argsort(non_zeros, axis=1)
+        kNeighborsArg = neighborsArgSorted[:,-k:]
+        kNeighborsArgSorted = T.sort(kNeighborsArg, axis=1) # make y indices in acending lie
 
-            neighborsArgSorted = T.argsort(non_zeros, axis=1)
-            kNeighborsArg = neighborsArgSorted[:,-k[i]:]
-            kNeighborsArgSorted = T.sort(kNeighborsArg, axis=1) # make y indices in acending lie
-
-            ii = T.repeat(T.arange(non_zeros.shape[0]), k[i])
-            jj = kNeighborsArgSorted.flatten()
-            pooledkmaxList = non_zeros[ii, jj] # now, should be a vector
-            new_shape = T.cast(T.join(0, 
-                           T.as_tensor([non_zeros.shape[0]]),
-                           T.as_tensor([k[i]])),
-                           'int64')
-            pooledkmaxMatrix = T.reshape(pooledkmaxList, new_shape, ndim=2)
-            if firstLayer:
-                leftWidth=(unifiedWidth-k[i])/2
-                rightWidth=unifiedWidth-leftWidth-k[i]
+        ii = T.repeat(T.arange(non_zeros.shape[0]), k)
+        jj = kNeighborsArgSorted.flatten()
+        pooledkmaxList = non_zeros[ii, jj] # now, should be a vector
+        new_shape = T.cast(T.join(0, T.as_tensor([non_zeros.shape[0]]),T.as_tensor([k])),'int64')
+        pooledkmaxMatrix = T.reshape(pooledkmaxList, new_shape, ndim=2)
+        if firstLayer:
+            leftWidth=(unifiedWidth-k)/2
+            rightWidth=unifiedWidth-leftWidth-k
                 
-                left_padding = T.zeros((non_zeros.shape[0], leftWidth), dtype=theano.config.floatX)
-                right_padding = T.zeros((non_zeros.shape[0], rightWidth), dtype=theano.config.floatX)
-                matrix_padded = T.concatenate([left_padding, pooledkmaxMatrix, right_padding], axis=1) 
-                padded_matrices.append(matrix_padded)     
-            else:
-                padded_matrices.append(pooledkmaxMatrix)
-                            
+            left_padding = T.zeros((non_zeros.shape[0], leftWidth), dtype=theano.config.floatX)
+            right_padding = T.zeros((non_zeros.shape[0], rightWidth), dtype=theano.config.floatX)
+            pooledkmaxMatrix = T.concatenate([left_padding, pooledkmaxMatrix, right_padding], axis=1) 
+            #padded_matrices.append(matrix_padded)     
+        #else:
+            #padded_matrices.append(pooledkmaxMatrix)
+        '''                    
         overall_matrix=T.concatenate(padded_matrices, axis=0)         
         new_shape = T.cast(T.join(0, fold_out.shape[:-2],
                            T.as_tensor([fold_out.shape[2]]),
                            T.as_tensor([unifiedWidth])),
                            'int64')
         pooled_out = T.reshape(overall_matrix, new_shape, ndim=4)
+        '''
+        pooled_out=pooledkmaxMatrix.reshape((self.input.shape[0],filter_shape[0], self.input.shape[2]/2,unifiedWidth))
         #wenpeng2=theano.printing.Print('pooled_out')(pooled_out[:,:,:,15:])
         # downsample each feature map individually, using maxpooling
         '''
@@ -797,11 +782,12 @@ class Conv_Fold_DynamicK_PoolLayer(object):
         # width & height
         #@wenpeng:  following tanh operation will voilate our expectation that zero-padding, for its output will have no zero any more
         #self.output = T.tanh(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x'))
-        biased_pooled_out=pooled_out + bb.dimshuffle('x', 'x', 0, 1)
+        #biased_pooled_out=pooled_out + bb.dimshuffle('x', 'x', 0, 1)
 
         #now, reset some zeros
         self.leftPad=(unifiedWidth-k)/2
         self.rightPad=unifiedWidth-self.leftPad-k
+        '''
         if firstLayer:
             zero_recover_matrices=[]
             for i in range(image_shape[0]): # image_shape[0] is actually batch_size
@@ -814,9 +800,13 @@ class Conv_Fold_DynamicK_PoolLayer(object):
             self.output=T.tanh(pooled_out_with_zeros)
         else:
             self.output=T.tanh(biased_pooled_out)
+        '''
+        self.output=T.tanh(pooled_out)
 
         # store parameters of this layer
-        self.params = [self.W, self.b]
+        self.params = [self.W]
+
+
 
 class HS_convolution_simplified(object):
     """Pool Layer of a convolutional network """
@@ -1184,10 +1174,20 @@ def repeat_whole_matrix(tensor, n, row_dir=True):
     list_tensor=[]
     for i in xrange(n):
         list_tensor.append(repeated_raw[:,:,:,i::n])
-    if row_dir:
+    if row_dir: #shape[2] will change
         return T.concatenate(list_tensor, axis=2)
     else:
         return T.concatenate(list_tensor, axis=3)
+
+def repeat_whole_tensor(matrix, n, row_dir=True):
+    repeated_raw=T.repeat(matrix, n, axis=1)
+    list_matrix=[]
+    for i in xrange(n):
+        list_matrix.append(repeated_raw[:,i::n])
+    if row_dir: #shape[2] will change
+        return T.concatenate(list_matrix, axis=0)
+    else:
+        return T.concatenate(list_matrix, axis=1)
     
 def detect_nan(i, node, fn):
     for output in fn.outputs:
