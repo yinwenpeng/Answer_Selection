@@ -39,8 +39,8 @@ from scipy import linalg, mat, dot
 0) word matching features
 '''
 
-def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size=1, window_width=5,
-                    maxSentLength=60, emb_size=8, L2_weight=0.0001, update_freq=1, unifiedWidth_conv0=8, k_dy=5, ktop=3):
+def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size=1, window_width=3,
+                    maxSentLength=60, emb_size=8, L2_weight=0.0001, update_freq=1, unifiedWidth_conv0=8, k_dy=3, ktop=3):
 
     model_options = locals().copy()
     print "model options", model_options
