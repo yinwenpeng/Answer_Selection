@@ -319,7 +319,9 @@ class Average_Pooling_for_Top(object):
         self.output_eucli_to_simi=1.0/(1.0+self.output_eucli)
         #self.output_eucli_to_simi_exp=1.0/T.exp(self.output_eucli) # not good
         #self.output_sigmoid_simi=debug_print(T.nnet.sigmoid(T.dot(dot_l/norm_l, (dot_r/norm_r).T)).reshape((1,1)),'output_sigmoid_simi')    
-        self.output_attentions=unify_eachone(simi_tensor, length_l, length_r, 7)
+        self.output_attentions=unify_eachone(simi_tensor, length_l, length_r, 4)
+        
+        #self.output_attentions=top_k_pooling(simi_tensor, length_l, length_r, 7)
         
 
         self.params = [self.W]
@@ -397,6 +399,31 @@ def compute_acc(label_list, scores_list):
     
     return correct_count*1.0/total_examples
 #def unify_eachone(tensor, left1, right1, left2, right2, dim, Np):
+def top_k_pooling(matrix, sentlength_1, sentlength_2, Np):
+
+    #tensor: (1, feature maps, 66, 66)
+    #sentlength_1=dim-left1-right1
+    #sentlength_2=dim-left2-right2
+    #core=tensor[:,:, left1:(dim-right1),left2:(dim-right2) ]
+    '''
+    repeat_row=Np/sentlength_1
+    extra_row=Np%sentlength_1
+    repeat_col=Np/sentlength_2
+    extra_col=Np%sentlength_2    
+    '''
+    #repeat core
+    matrix_1=repeat_whole_tensor(matrix, 5, True) 
+    matrix_2=repeat_whole_tensor(matrix_1, 5, False)
+
+    list_values=matrix_2.flatten()
+    neighborsArgSorted = T.argsort(list_values)
+    kNeighborsArg = neighborsArgSorted[-(Np**2):]    
+    top_k_values=list_values[kNeighborsArg]
+    
+
+    all_max_value=top_k_values.reshape((1, Np**2))
+    
+    return all_max_value  
 def unify_eachone(matrix, sentlength_1, sentlength_2, Np):
 
     #tensor: (1, feature maps, 66, 66)

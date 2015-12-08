@@ -48,8 +48,8 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
     rng = numpy.random.RandomState(23455)
     datasets, vocab_size=load_msr_corpus(rootPath+'vocab.txt', rootPath+'tokenized_train.txt', rootPath+'tokenized_test.txt', maxSentLength)
     mtPath='/mounts/data/proj/wenpeng/Dataset/paraphraseMT/'
-    mt_train, mt_test=load_mts(mtPath+'concate_15mt_train.txt', mtPath+'concate_15mt_test.txt')
-    wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_number_matching_scores.txt', rootPath+'test_number_matching_scores.txt')
+    #mt_train, mt_test=load_mts(mtPath+'concate_15mt_train.txt', mtPath+'concate_15mt_test.txt')
+    #wm_train, wm_test=load_wmf_wikiQA(rootPath+'train_number_matching_scores.txt', rootPath+'test_number_matching_scores.txt')
     indices_train, trainY, trainLengths, normalized_train_length, trainLeftPad, trainRightPad= datasets[0]
     indices_train_l=indices_train[::2,:]
     indices_train_r=indices_train[1::2,:]
@@ -115,8 +115,8 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
     length_r=T.lscalar()
     norm_length_l=T.dscalar()
     norm_length_r=T.dscalar()
-    mts=T.dmatrix()
-    wmf=T.dmatrix()
+    #mts=T.dmatrix()
+    #wmf=T.dmatrix()
     cost_tmp=T.dscalar()
     #x=embeddings[x_index.flatten()].reshape(((batch_size*4),maxSentLength, emb_size)).transpose(0, 2, 1).flatten()
     ishape = (emb_size, maxSentLength)  # this is the size of MNIST images
@@ -214,7 +214,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
     #length_gap=T.log(1+(T.sqrt((len_l-len_r)**2))).reshape((1,1))
     #length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
-    layer3_input=T.concatenate([mts, 
+    layer3_input=T.concatenate([#mts, 
                                 eucli_1, #uni_cosine,norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
                                 layer1.output_eucli_to_simi,
                                 layer1.output_attentions, #layer1.output_cosine,layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,#layer1.output_cosine, #
@@ -226,7 +226,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
                                 ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=15+1+(1+7*7)*2+2, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=1+(1+4*4)*2+2, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum()+(conv_W2**2).sum(), 'L2_reg')#+(layer1.W** 2).sum()
@@ -247,9 +247,10 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
             length_l: testLengths_l[index],
             length_r: testLengths_r[index],
             norm_length_l: normalized_test_length_l[index],
-            norm_length_r: normalized_test_length_r[index],
-            mts: mt_test[index: index + batch_size],
-            wmf: wm_test[index: index + batch_size]}, on_unused_input='ignore')
+            norm_length_r: normalized_test_length_r[index]
+            #mts: mt_test[index: index + batch_size],
+            #wmf: wm_test[index: index + batch_size]
+            }, on_unused_input='ignore')
 
 
     #params = layer3.params + layer2.params + layer1.params+ [conv_W, conv_b]
@@ -286,9 +287,10 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
             length_l: trainLengths_l[index],
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
-            norm_length_r: normalized_train_length_r[index],
-            mts: mt_train[index: index + batch_size],
-            wmf: wm_train[index: index + batch_size]}, on_unused_input='ignore')
+            norm_length_r: normalized_train_length_r[index]
+            #mts: mt_train[index: index + batch_size],
+            #wmf: wm_train[index: index + batch_size]
+            }, on_unused_input='ignore')
 
     train_model_predict = theano.function([index], [cost_this,layer3.errors(y), layer3_input, y],
           givens={
@@ -302,9 +304,10 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
             length_l: trainLengths_l[index],
             length_r: trainLengths_r[index],
             norm_length_l: normalized_train_length_l[index],
-            norm_length_r: normalized_train_length_r[index],
-            mts: mt_train[index: index + batch_size],
-            wmf: wm_train[index: index + batch_size]}, on_unused_input='ignore')
+            norm_length_r: normalized_train_length_r[index]
+            #mts: mt_train[index: index + batch_size],
+            #wmf: wm_train[index: index + batch_size]
+            }, on_unused_input='ignore')
 
 
 
@@ -382,7 +385,9 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
                     #write_file.write(str(pred_y[0])+'\n')#+'\t'+str(testY[i].eval())+
 
                 #write_file.close()
+                
                 test_score = numpy.mean(test_losses)
+                test_acc=1-test_score
                 print(('\t\t\t\t\t\tepoch %i, minibatch %i/%i, test acc of best '
                            'model %f %%') %
                           (epoch, minibatch_index, n_train_batches,
@@ -418,6 +423,9 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
                     best_epoch=epoch
                 if acc_lr> max_acc:
                     max_acc=acc_lr
+                    best_epoch=epoch
+                if test_acc> max_acc:
+                    max_acc=test_acc
                     best_epoch=epoch
                 print '\t\t\t\t\t\t\t\t\t\t\tsvm acc: ', acc, 'LR acc: ', acc_lr, ' max acc: ',    max_acc , ' at epoch: ', best_epoch     
                 #exit(0)
