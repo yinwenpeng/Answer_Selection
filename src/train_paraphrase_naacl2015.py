@@ -40,7 +40,7 @@ from scipy import linalg, mat, dot
 '''
 
 def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size=1, window_width=3,
-                    maxSentLength=60, emb_size=8, L2_weight=0.0001, update_freq=1, unifiedWidth_conv0=8, k_dy=3, ktop=3):
+                    maxSentLength=60, emb_size=300, L2_weight=0.0005, update_freq=1, unifiedWidth_conv0=8, k_dy=3, ktop=3):
 
     model_options = locals().copy()
     print "model options", model_options
@@ -96,7 +96,7 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
     rand_values=random_value_normal((vocab_size+1, emb_size), theano.config.floatX, numpy.random.RandomState(1234))
     rand_values[0]=numpy.array(numpy.zeros(emb_size))
     #rand_values[0]=numpy.array([1e-50]*emb_size)
-    #rand_values=load_word2vec_to_init(rand_values, rootPath+'vocab_embs_300d.txt')
+    rand_values=load_word2vec_to_init(rand_values, rootPath+'vocab_embs_300d.txt')
     embeddings=theano.shared(value=rand_values, borrow=True)      
     
 
@@ -215,18 +215,24 @@ def evaluate_lenet5(learning_rate=0.085, n_epochs=2000, nkerns=[1,1], batch_size
     #length_gap=T.sqrt((len_l-len_r)**2)
     #layer3_input=mts
     layer3_input=T.concatenate([#mts, 
-                                eucli_1, #uni_cosine,norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
-                                layer1.output_eucli_to_simi,
+                                eucli_1, uni_cosine,
+                                #norm_uni_l, norm_uni_r,#uni_cosine,#norm_uni_l-(norm_uni_l+norm_uni_r)/2,#uni_cosine, #
+                                
+                                layer1.output_eucli_to_simi,layer1.output_cosine,
                                 layer1.output_attentions, #layer1.output_cosine,layer1.output_vector_l-(layer1.output_vector_l+layer1.output_vector_r)/2,#layer1.output_cosine, #
-                                layer2.output_eucli_to_simi,
+                                #layer1.output_vector_l,layer1.output_vector_r,
+                                
+                                layer2.output_eucli_to_simi,layer2.output_cosine,
                                 layer2.output_attentions,
+                                #layer2.output_vector_l,layer2.output_vector_r,
+                                
                                 len_l, len_r
                                 #layer1.output_attentions,
                                 #wmf,
                                 ], axis=1)#, layer2.output, layer1.output_cosine], axis=1)
     #layer3_input=T.concatenate([mts,eucli, uni_cosine, len_l, len_r, norm_uni_l-(norm_uni_l+norm_uni_r)/2], axis=1)
     #layer3=LogisticRegression(rng, input=layer3_input, n_in=11, n_out=2)
-    layer3=LogisticRegression(rng, input=layer3_input, n_in=1+(1+4*4)*2+2, n_out=2)
+    layer3=LogisticRegression(rng, input=layer3_input, n_in=(2)+(2+4*4)+(2+4*4)+2, n_out=2)
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum()+(conv_W2**2).sum(), 'L2_reg')#+(layer1.W** 2).sum()
