@@ -19,7 +19,7 @@ from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
 from loadData import load_SICK_corpus, load_word2vec_to_init, load_mts_wikiQA, load_wmf_wikiQA, load_extra_features
 from word2embeddings.nn.util import zero_value, random_value_normal
-from common_functions import Conv_with_input_para, Average_Pooling_for_Top, create_conv_para
+from common_functions import Conv_with_input_para, Average_Pooling_for_Top, create_conv_para, Diversify_Reg
 from random import shuffle
 
 from sklearn import svm
@@ -57,7 +57,7 @@ Doesnt work:
 
 def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1, window_width=3,
                     maxSentLength=64, emb_size=300, hidden_size=200,
-                    margin=0.5, L2_weight=0.00065, update_freq=1, norm_threshold=5.0, max_truncate=33, max_truncate_nonoverlap=24):
+                    margin=0.5, L2_weight=0.00065, Div_reg=0.01, update_freq=1, norm_threshold=5.0, max_truncate=33, max_truncate_nonoverlap=24):
     maxSentLength=max_truncate+2*(window_width-1)
     maxSentLength_nonoverlap=max_truncate_nonoverlap+2*(window_width-1)
     model_options = locals().copy()
@@ -230,7 +230,7 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
     layer0_r_input_nonoverlap = embeddings_nonoverlap[x_index_r_nonoverlap.flatten()].reshape((batch_size,maxSentLength_nonoverlap, emb_size)).transpose(0, 2, 1).dimshuffle(0, 'x', 1, 2)    
     
     conv_W, conv_b=create_conv_para(rng, filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]))
-
+    conv_W_into_matrix=conv_W.reshape((conv_W.shape[0], conv_W.shape[2]*conv_W.shape[3]))
     #layer0_output = debug_print(layer0.output, 'layer0.output')
     layer0_l = Conv_with_input_para(rng, input=layer0_l_input,
             image_shape=(batch_size, 1, ishape[0], ishape[1]),
@@ -338,8 +338,9 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
     
     #L2_reg =(layer3.W** 2).sum()+(layer2.W** 2).sum()+(layer1.W** 2).sum()+(conv_W** 2).sum()
     L2_reg =debug_print((layer3.W** 2).sum()+(conv_W** 2).sum(), 'L2_reg')#+(layer1.W** 2).sum()++(embeddings**2).sum()
+    diversify_reg= Diversify_Reg(layer3.W.T)+Diversify_Reg(conv_W_into_matrix)
     cost_this =debug_print(layer3.negative_log_likelihood(y), 'cost_this')#+L2_weight*L2_reg
-    cost=debug_print((cost_this+cost_tmp)/update_freq+L2_weight*L2_reg, 'cost')
+    cost=debug_print((cost_this+cost_tmp)/update_freq+L2_weight*L2_reg+Div_reg*diversify_reg, 'cost')
     #cost=debug_print((cost_this+cost_tmp)/update_freq, 'cost')
     
 
@@ -384,16 +385,39 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
     for para_i in params:
         eps_p=numpy.zeros_like(para_i.get_value(borrow=True),dtype=theano.config.floatX)
         accumulator.append(theano.shared(eps_p, borrow=True))
-      
+        
     # create a list of gradients for all model parameters
     grads = T.grad(cost, params)
-
+  
     updates = []
     for param_i, grad_i, acc_i in zip(params, grads, accumulator):
         grad_i=debug_print(grad_i,'grad_i')
         acc = acc_i + T.sqr(grad_i)
         updates.append((param_i, param_i - learning_rate * grad_i / T.sqrt(acc)))   #AdaGrad
         updates.append((acc_i, acc))    
+
+#     def Adam(cost, params, lr=0.0002, b1=0.1, b2=0.001, e=1e-8):
+#         updates = []
+#         grads = T.grad(cost, params)
+#         i = theano.shared(numpy.float64(0.))
+#         i_t = i + 1.
+#         fix1 = 1. - (1. - b1)**i_t
+#         fix2 = 1. - (1. - b2)**i_t
+#         lr_t = lr * (T.sqrt(fix2) / fix1)
+#         for p, g in zip(params, grads):
+#             m = theano.shared(p.get_value() * 0.)
+#             v = theano.shared(p.get_value() * 0.)
+#             m_t = (b1 * g) + ((1. - b1) * m)
+#             v_t = (b2 * T.sqr(g)) + ((1. - b2) * v)
+#             g_t = m_t / (T.sqrt(v_t) + e)
+#             p_t = p - (lr_t * g_t)
+#             updates.append((m, m_t))
+#             updates.append((v, v_t))
+#             updates.append((p, p_t))
+#         updates.append((i, i_t))
+#         return updates
+#      
+#     updates=Adam(cost=cost, params=params, lr=0.0005)
   
     train_model = theano.function([index,cost_tmp], cost, updates=updates,
           givens={
@@ -486,6 +510,7 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
     done_looping = False
     
     max_acc=0.0
+    pre_max=-1
     best_epoch=0
 
     while (epoch < n_epochs) and (not done_looping):
@@ -608,6 +633,17 @@ def evaluate_lenet5(learning_rate=0.09, n_epochs=2000, nkerns=[50], batch_size=1
                     max_acc=acc_lr
                     best_epoch=epoch
                 print '\t\t\tsvm:', acc, 'lr:', acc_lr, 'max:',    max_acc,'(at',best_epoch,')','Neu:',acc_neu, 'Ent:',acc_ent, 'Contr:',acc_contr 
+                if max_acc > pre_max:
+                    write_feature_train=open(rootPath+'train_feature_'+str(max_acc)+'.txt', 'w')
+                    write_feature_test=open(rootPath+'test_feature_'+str(max_acc)+'.txt', 'w')
+                    for i in range(len(train_features)):
+                        write_feature_train.write(' '.join(map(str, train_features[i]))+'\n')
+                    for i in range(len(test_features)):
+                        write_feature_test.write(' '.join(map(str, test_features[i]))+'\n')
+                    write_feature_train.close()
+                    write_feature_test.close()
+                    print 'features stored over'
+                    pre_max=max_acc
 
             if patience <= iter:
                 done_looping = True

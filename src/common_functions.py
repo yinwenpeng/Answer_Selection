@@ -5,6 +5,69 @@ from theano.tensor.nnet import conv
 from cis.deep.utils.theano import debug_print
 from WPDefined import repeat_whole_matrix, repeat_whole_tensor
 
+def create_GRU_para(rng, word_dim, hidden_dim):
+        # Initialize the network parameters
+        U = numpy.random.uniform(-numpy.sqrt(1./hidden_dim), numpy.sqrt(1./hidden_dim), (3, hidden_dim, word_dim))
+        W = numpy.random.uniform(-numpy.sqrt(1./hidden_dim), numpy.sqrt(1./hidden_dim), (3, hidden_dim, hidden_dim))
+        b = numpy.zeros((3, hidden_dim))
+        # Theano: Created shared variables
+        U = debug_print(theano.shared(name='U', value=U.astype(theano.config.floatX), borrow=True), 'U')
+        W = debug_print(theano.shared(name='W', value=W.astype(theano.config.floatX), borrow=True), 'W')
+        b = debug_print(theano.shared(name='b', value=b.astype(theano.config.floatX), borrow=True), 'b')
+        return U, W, b
+class GRU_Matrix_Input(object):
+    def __init__(self, X, word_dim, hidden_dim, U, W, b, bptt_truncate):
+        self.hidden_dim = hidden_dim
+        self.bptt_truncate = bptt_truncate
+        
+        def forward_prop_step(x_t, s_t1_prev):            
+            # GRU Layer 1
+            z_t1 =debug_print( T.nnet.sigmoid(U[0].dot(x_t) + W[0].dot(s_t1_prev) + b[0]), 'z_t1')
+            r_t1 = debug_print(T.nnet.sigmoid(U[1].dot(x_t) + W[1].dot(s_t1_prev) + b[1]), 'r_t1')
+            c_t1 = debug_print(T.tanh(U[2].dot(x_t) + W[2].dot(s_t1_prev * r_t1) + b[2]), 'c_t1')
+            s_t1 = debug_print((T.ones_like(z_t1) - z_t1) * c_t1 + z_t1 * s_t1_prev, 's_t1')
+            return s_t1
+        
+        s, updates = theano.scan(
+            forward_prop_step,
+            sequences=X.transpose(1,0),
+            truncate_gradient=self.bptt_truncate,
+            outputs_info=dict(initial=T.zeros(self.hidden_dim)))
+        
+        self.output_matrix=debug_print(s.transpose(), 'GRU_Matrix_Input.output_matrix')
+        self.output_vector_mean=T.mean(self.output_matrix, axis=1)
+        self.output_vector_max=T.max(self.output_matrix, axis=1)
+        self.output_vector_last=self.output_matrix[:,-1]
+def create_params_WbWAE(input_dim, output_dim):
+    W = numpy.random.uniform(-numpy.sqrt(1./output_dim), numpy.sqrt(1./output_dim), (6, output_dim, input_dim))
+    w = numpy.random.uniform(-numpy.sqrt(1./output_dim), numpy.sqrt(1./output_dim), (1,output_dim))
+
+    W = theano.shared(name='W', value=W.astype(theano.config.floatX))
+    w = theano.shared(name='w', value=w.astype(theano.config.floatX))
+    
+    return W, w
+
+class Word_by_Word_Attention_EntailmentPaper(object):
+    def __init__(self, l_hidden_M, r_hidden_M, W_y,W_h,W_r, w, W_t, W_p, W_x, r_dim):
+        self.Y=l_hidden_M
+        self.H=r_hidden_M
+        self.attention_dim=r_dim
+        self.r0 = theano.shared(name='r0', value=numpy.zeros(self.attention_dim, dtype=theano.config.floatX))
+        def loop(h_t, r_t_1):
+            M_t=T.tanh(W_y.dot(self.Y)+(W_h.dot(h_t)+W_r.dot(r_t_1)).dimshuffle(0,'x'))
+            alpha_t=T.nnet.softmax(w.dot(M_t))
+            r_t=self.Y.dot(alpha_t.reshape((self.Y.shape[1],1)))+T.tanh(W_t.dot(r_t_1))
+
+            r_t=T.sum(M_t, axis=1)
+            return r_t
+        
+        r, updates= theano.scan(loop,
+                                sequences=self.H.transpose(),
+                                outputs_info=self.r0
+                                )
+        
+        H_star=T.tanh(W_p.dot(r[-1]+W_x.dot(self.H[:,-1])))
+        self.output=H_star    
 def create_conv_para(rng, filter_shape):
         fan_in = numpy.prod(filter_shape[1:])
         fan_out = filter_shape[0] * numpy.prod(filter_shape[2:])
@@ -116,7 +179,7 @@ class Conv(object):
         self.params = [self.W, self.b]
 
 class Average_Pooling(object):
-    """The input is output of Conv: a tensor.  The output here should also be tensor"""
+    """this pooling includes all-ap and w-ap, it can output two vectors as well as two matrices"""
 
     def __init__(self, rng, input_l, input_r, kern, left_l, right_l, left_r, right_r, length_l, length_r, dim, window_size, maxSentLength): # length_l, length_r: valid lengths after conv
 
@@ -139,14 +202,16 @@ class Average_Pooling(object):
         input_r_matrix=input_r_matrix[:, left_r:(input_r_matrix.shape[1]-right_r)]
         
         
-        simi_tensor=compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length_r, self.W, dim) #(input.shape[0]/2, input.shape[1], input.shape[3], input.shape[3])
+        simi_tensor=compute_simi_feature_batch1_new(input_l_matrix, input_r_matrix, length_l, length_r, self.W, dim) #(input.shape[0]/2, input.shape[1], input.shape[3], input.shape[3])
         simi_question=debug_print(T.sum(simi_tensor, axis=1).reshape((1, length_l)),'simi_question')
         simi_answer=debug_print(T.sum(simi_tensor, axis=0).reshape((1, length_r)), 'simi_answer')
         
-        #weights_question =T.nnet.softmax(simi_question) 
-        #weights_answer=T.nnet.softmax(simi_answer) 
-        weights_question =simi_question
-        weights_answer=simi_answer        
+#         weights_question =T.nnet.softmax(simi_question) 
+#         weights_answer=T.nnet.softmax(simi_answer) 
+#         weights_question =simi_question
+#         weights_answer=simi_answer        
+        weights_question =simi_question/T.sum(simi_question)
+        weights_answer=simi_answer/T.sum(simi_answer) 
         #concate=T.concatenate([weights_question, weights_answer], axis=1)
         #reshaped_concate=concate.reshape((input.shape[0], 1, 1, length_last_dim))
         
@@ -213,7 +278,9 @@ class Average_Pooling(object):
         self.output_eucli_to_simi=1.0/(1.0+self.output_eucli)
         #self.output_simi=self.output_eucli
         
-        
+        self.output_attention_vector_l=weights_question
+        self.output_attention_vector_r=weights_answer
+        self.output_attention_matrix=simi_tensor        
 
         self.params = [self.W]
 
@@ -280,14 +347,16 @@ class Average_Pooling_for_Top(object):
         input_r_matrix=debug_print(input_r_matrix[:, left_r:(input_r_matrix.shape[1]-right_r)],'input_r_matrix')
         
         
-        simi_tensor=compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length_r, self.W, dim) #(input.shape[0]/2, input.shape[1], input.shape[3], input.shape[3])
+        simi_tensor=compute_simi_feature_batch1_new(input_l_matrix, input_r_matrix, length_l, length_r, self.W, dim) #(input.shape[0]/2, input.shape[1], input.shape[3], input.shape[3])
         simi_question=debug_print(T.sum(simi_tensor, axis=1).reshape((1, length_l)),'simi_question')
         simi_answer=debug_print(T.sum(simi_tensor, axis=0).reshape((1, length_r)), 'simi_answer')
         
-        #weights_question =T.nnet.softmax(simi_question) 
-        #weights_answer=T.nnet.softmax(simi_answer) 
-        weights_question =simi_question
-        weights_answer=simi_answer        
+#         weights_question =T.nnet.softmax(simi_question) 
+#         weights_answer=T.nnet.softmax(simi_answer) 
+        #weights_question =simi_question
+        #weights_answer=simi_answer        
+        weights_question =simi_question/T.sum(simi_question)
+        weights_answer=simi_answer/T.sum(simi_answer)    
         #concate=T.concatenate([weights_question, weights_answer], axis=1)
         #reshaped_concate=concate.reshape((input.shape[0], 1, 1, length_last_dim))
         
@@ -321,10 +390,49 @@ class Average_Pooling_for_Top(object):
         #self.output_sigmoid_simi=debug_print(T.nnet.sigmoid(T.dot(dot_l/norm_l, (dot_r/norm_r).T)).reshape((1,1)),'output_sigmoid_simi')    
         self.output_attentions=unify_eachone(simi_tensor, length_l, length_r, 4)
         
-        #self.output_attentions=top_k_pooling(simi_tensor, length_l, length_r, 7)
+        self.output_attention_vector_l=weights_question
+        self.output_attention_vector_r=weights_answer
+        self.output_attention_matrix=simi_tensor
         
 
         self.params = [self.W]
+
+def compute_simi_feature_batch1_new(input_l_matrix, input_r_matrix, length_l, length_r, para_matrix, dim):
+    #matrix_r_after_translate=debug_print(T.dot(para_matrix, input_r_matrix), 'matrix_r_after_translate')
+    matrix_r_after_translate=input_r_matrix
+    
+    input_l_tensor=input_l_matrix.dimshuffle('x',0,1)
+    input_l_tensor=T.repeat(input_l_tensor, dim, axis=0)[:length_r,:,:]
+    input_l_tensor=input_l_tensor.dimshuffle(2,1,0).dimshuffle(0,2,1)
+    repeated_1=input_l_tensor.reshape((length_l*length_r, input_l_matrix.shape[0])).dimshuffle(1,0)
+    
+    input_r_tensor=matrix_r_after_translate.dimshuffle('x',0,1)
+    input_r_tensor=T.repeat(input_r_tensor, dim, axis=0)[:length_l,:,:]
+    input_r_tensor=input_r_tensor.dimshuffle(0,2,1)
+    repeated_2=input_r_tensor.reshape((length_l*length_r, matrix_r_after_translate.shape[0])).dimshuffle(1,0)
+    
+    #wrong
+    #repeated_1=debug_print(T.repeat(input_l_matrix, dim, axis=1)[:, : (length_l*length_r)],'repeated_1') # add 10 because max_sent_length is only input for conv, conv will make size bigger
+    #repeated_2=debug_print(repeat_whole_tensor(matrix_r_after_translate, dim, False)[:, : (length_l*length_r)],'repeated_2')
+    '''
+    #cosine attention   
+    length_1=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_1), axis=0)),'length_1')
+    length_2=debug_print(1e-10+T.sqrt(T.sum(T.sqr(repeated_2), axis=0)), 'length_2')
+
+    multi=debug_print(repeated_1*repeated_2, 'multi')
+    sum_multi=debug_print(T.sum(multi, axis=0),'sum_multi')
+    
+    list_of_simi= debug_print(sum_multi/(length_1*length_2),'list_of_simi')   #to get rid of zero length
+    simi_matrix=debug_print(list_of_simi.reshape((length_l, length_r)), 'simi_matrix')
+    
+    '''
+    #euclid, effective for wikiQA
+    gap=debug_print(repeated_1-repeated_2, 'gap')
+    eucli=debug_print(T.sqrt(1e-10+T.sum(T.sqr(gap), axis=0)),'eucli')
+    simi_matrix=debug_print((1.0/(1.0+eucli)).reshape((length_l, length_r)), 'simi_matrix')
+    
+    
+    return simi_matrix#[:length_l, :length_r]
 
 def compute_simi_feature_batch1(input_l_matrix, input_r_matrix, length_l, length_r, para_matrix, dim):
     #matrix_r_after_translate=debug_print(T.dot(para_matrix, input_r_matrix), 'matrix_r_after_translate')
@@ -509,6 +617,8 @@ class Create_Attention_Input_Cnn(object):
         
         self.params=[self.W]
 
-    
+def Diversify_Reg(W):
+    loss=((W.dot(W.T)-T.eye(n=W.shape[0], m=W.shape[0], k=0, dtype=theano.config.floatX))**2).sum()  
+    return loss      
     
     
