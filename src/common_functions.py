@@ -103,6 +103,8 @@ class Conv_with_input_para(object):
         conv_with_bias = T.tanh(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
         narrow_conv_out=conv_with_bias.reshape((image_shape[0], 1, filter_shape[0], image_shape[3]-filter_shape[3]+1)) #(batch, 1, kernerl, ishape[1]-filter_size1[1]+1)
         
+        self.output_narrow_conv_out = narrow_conv_out
+        
         #pad filter_size-1 zero embeddings at both sides
         left_padding = T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
         right_padding = T.zeros((image_shape[0], 1, filter_shape[0], filter_shape[3]-1), dtype=theano.config.floatX)
@@ -382,13 +384,13 @@ class Average_Pooling_for_Top(object):
         self.output_vector_l=debug_print((dot_l/norm_l).reshape((1, kern)),'output_vector_l')
         self.output_vector_r=debug_print((dot_r/norm_r).reshape((1, kern)), 'output_vector_r')      
         self.output_concate=T.concatenate([dot_l, dot_r], axis=0).reshape((1, kern*2))
-        self.output_cosine=debug_print((T.sum(dot_l*dot_r)/norm_l/norm_r).reshape((1,1)),'output_cosine')
+        self.output_cosine=debug_print((T.sum(dot_l*dot_r)/(norm_l*norm_r+1e-10)).reshape((1,1)),'output_cosine')
 
         self.output_eucli=debug_print(T.sqrt(T.sqr(dot_l-dot_r).sum()+1e-20).reshape((1,1)),'output_eucli')
         self.output_eucli_to_simi=1.0/(1.0+self.output_eucli)
         #self.output_eucli_to_simi_exp=1.0/T.exp(self.output_eucli) # not good
         #self.output_sigmoid_simi=debug_print(T.nnet.sigmoid(T.dot(dot_l/norm_l, (dot_r/norm_r).T)).reshape((1,1)),'output_sigmoid_simi')    
-        self.output_attentions=unify_eachone(simi_tensor, length_l, length_r, 4)
+        self.output_attentions=unify_eachone(simi_tensor, length_l, length_r, 10)
         
         self.output_attention_vector_l=weights_question
         self.output_attention_vector_r=weights_answer
@@ -621,4 +623,7 @@ def Diversify_Reg(W):
     loss=((W.dot(W.T)-T.eye(n=W.shape[0], m=W.shape[0], k=0, dtype=theano.config.floatX))**2).sum()  
     return loss      
     
-    
+def Determinant(W):
+    prod=W.dot(W.T)
+    loss=1.0/T.log(theano.tensor.nlinalg.Det()(prod))
+    return loss    

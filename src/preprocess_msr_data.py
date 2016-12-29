@@ -1,4 +1,5 @@
 import numpy
+from string import digits
 
 rootPath="/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/";
 def Extract_Vocab():
@@ -201,22 +202,87 @@ def two_word_matching_methods(path, trainfile, testfile):
     max_WC=numpy.max(WC_overall)          
     min_WC=numpy.min(WC_overall)
     
-    write_train=open(path+'train_word_matching_scores_normalized.txt','w')
+    write_train=open(path+'train_word_matching_scores.txt','w')
     for index,wc in enumerate(WC_train):
-        wc=(wc-min_WC)*1.0/(max_WC-min_WC)
+        #wc=(wc-min_WC)*1.0/(max_WC-min_WC) # normalize
         write_train.write(str(wc)+' '+str(WWC_train[index])+'\n')
     write_train.close()
-    write_test=open(path+'test_word_matching_scores_normalized.txt','w')
+    write_test=open(path+'test_word_matching_scores.txt','w')
     for index,wc in enumerate(WC_test):
-        wc=(wc-min_WC)*1.0/(max_WC-min_WC)
+        #wc=(wc-min_WC)*1.0/(max_WC-min_WC)
         write_test.write(str(wc)+' '+str(WWC_test[index])+'\n')
     write_test.close()    
     
     print 'two word matching values generated'    
 
+def Number_Overlap_Features(path, trainfile, testfile):
+
+    #train file
+    write_train=open(path+'train_number_matching_scores.txt','w')
+    read_train=open(path+trainfile, 'r')
+    #write_train=open(path+'train_word_matching_scores_normalized.txt','w')
+    for line in read_train:
+        parts=line.strip().split('\t')
+        question=parts[1].split()
+        no_set_q=set()
+        for word in question:
+            if containsnumbers(word):
+                no_set_q.add(word)
+        no_set_a=set()
+        answer=parts[2].split()
+        for word in answer:
+            if containsnumbers(word):
+                no_set_a.add(word)      
+        feature_1=0      
+        if no_set_q==no_set_a:
+            feature_1=1
+        feature_2=0
+        if no_set_q < no_set_a or no_set_q > no_set_a:
+            feature_2=1
+        feature_3=0
+        if len(no_set_q & no_set_a)>0:
+            feature_3=1
+        write_train.write(str(feature_1)+' '+str(feature_2)+' '+str(feature_3)+'\n')    
+        write_train.write(str(feature_1)+' '+str(feature_2)+' '+str(feature_3)+'\n')  #repeat once  
+    read_train.close()
+    write_train.close()
+    #test file
+    write_test=open(path+'test_number_matching_scores.txt','w')
+    read_test=open(path+testfile, 'r')
+    #write_train=open(path+'train_word_matching_scores_normalized.txt','w')
+    for line in read_test:
+        parts=line.strip().split('\t')
+        question=parts[1].split()
+        no_set_q=set()
+        for word in question:
+            if containsnumbers(word):
+                no_set_q.add(word)
+        no_set_a=set()
+        answer=parts[2].split()
+        for word in answer:
+            if containsnumbers(word):
+                no_set_a.add(word)      
+        feature_1=0      
+        if no_set_q==no_set_a:
+            feature_1=1
+        feature_2=0
+        if no_set_q < no_set_a or no_set_q > no_set_a:
+            feature_2=1
+        feature_3=0
+        if len(no_set_q & no_set_a)>0:
+            feature_3=1
+        write_test.write(str(feature_1)+' '+str(feature_2)+' '+str(feature_3)+'\n')     
+    read_test.close()
+    write_test.close()
+    
+    print 'two number matching values generated'  
+    
+def containsnumbers(value):
+    return any(char in digits for char in value)
 if __name__ == '__main__':
     #Extract_Vocab()
     #transcate_word2vec_into_msr_vocab()
     #putAllMtTogether()
-    two_word_matching_methods('/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/', 'tokenized_train.txt', 'tokenized_test.txt')
+    #two_word_matching_methods('/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/', 'tokenized_train.txt', 'tokenized_test.txt')
+    Number_Overlap_Features('/mounts/data/proj/wenpeng/Dataset/MicrosoftParaphrase/tokenized_msr/', 'tokenized_train.txt', 'tokenized_test.txt')
             

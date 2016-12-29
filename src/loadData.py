@@ -17,7 +17,158 @@ from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
 
 from operator import itemgetter
+def load_huizi_corpus(vocabFile, trainFile, testFile, max_truncate,maxlength): #maxSentLength=45
+    #first load word vocab
+    read_vocab=open(vocabFile, 'r')
+    vocab={}
+    word_ind=1
+    for line in read_vocab:
+        tokens=line.strip().split()
+        vocab[tokens[1]]=word_ind #word2id
+        word_ind+=1
+    read_vocab.close()
+    #load train file
+    def load_train_file(file, word2id):   
+        read_file=open(file, 'r')
+        data=[]
+        Y=[]
+        Lengths=[]
+        #true_lengths=[]
+        leftPad=[]
+        rightPad=[]
+        line_control=0
+        for line in read_file:
+            tokens=line.strip().split('\t')  # question, answer, label
+            Y.append(int(tokens[0])) 
+            #question
+            for i in [1,2]:
+                sent=[]
+                words=tokens[i].strip().lower().split()  
+                #true_lengths.append(len(words))
+                length=0
+                for word in words:
+                    id=word2id.get(word)
+                    if id is not None:
+                        sent.append(id)
+                        length+=1
+                        if length==max_truncate: #we consider max 43 words
+                            break
+                if length==0:
+                    #print 'shit sentence: ', tokens[i]
+                    #exit(0)
+                    break
+                Lengths.append(length)
+                left=(maxlength-length)/2
+                right=maxlength-left-length
+                leftPad.append(left)
+                rightPad.append(right)
+ 
+                sent=[0]*left+sent+[0]*right
+                data.append(sent)
+            line_control+=1
+            #if line_control==50:
+            #    break
+        read_file.close()
+        '''
+        #normalized length
+        arr=numpy.array(Lengths)
+        max=numpy.max(arr)
+        min=numpy.min(arr)
+        normalized_lengths=(arr-min)*1.0/(max-min)
+        '''
+        #return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad)
+        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad)
 
+    def load_test_file(file, word2id):
+        read_file=open(file, 'r')
+        data=[]
+        Y=[]
+        Lengths=[]
+        #true_lengths=[]
+        leftPad=[]
+        rightPad=[]
+        line_control=0
+        for line in read_file:
+            tokens=line.strip().split('\t')
+            Y.append(int(tokens[0])) # make the label starts from 0 to 4
+            #Y.append(int(tokens[0]))
+            for i in [1,2]:
+                sent=[]
+                words=tokens[i].strip().lower().split()  
+                #true_lengths.append(len(words))
+                length=0
+                for word in words:
+                    id=word2id.get(word)
+                    if id is not None:
+                        sent.append(id)
+                        length+=1
+                        if length==max_truncate: #we consider max 43 words
+                            break
+                if length==0:
+                    #print 'shit sentence: ', tokens[i]
+                    #exit(0)
+                    break
+                Lengths.append(length)
+                left=(maxlength-length)/2
+                right=maxlength-left-length
+                leftPad.append(left)
+                rightPad.append(right) 
+                sent=[0]*left+sent+[0]*right
+                data.append(sent)
+            #line_control+=1
+            #if line_control==1000:
+            #    break
+        read_file.close()
+        '''
+        #normalized lengths
+        arr=numpy.array(Lengths)
+        max=numpy.max(arr)
+        min=numpy.min(arr)
+        normalized_lengths=(arr-min)*1.0/(max-min)
+        '''
+        #return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad) 
+        return numpy.array(data),numpy.array(Y), numpy.array(Lengths), numpy.array(leftPad),numpy.array(rightPad) 
+
+    indices_train, trainY, trainLengths, trainLeftPad, trainRightPad=load_train_file(trainFile, vocab)
+    print 'train file loaded over, total pairs: ', len(trainLengths)/2
+    indices_test, testY, testLengths, testLeftPad, testRightPad=load_test_file(testFile, vocab)
+    print 'test file loaded over, total pairs: ', len(testLengths)/2
+    
+    #now, we need normaliza sentence length in the whole dataset (training and test)
+    concate_matrix=numpy.concatenate((trainLengths, testLengths), axis=0)
+    max=numpy.max(concate_matrix)
+    min=numpy.min(concate_matrix)    
+    normalized_trainLengths=(trainLengths-min)*1.0/(max-min)
+    normalized_testLengths=(testLengths-min)*1.0/(max-min)
+
+    
+    def shared_dataset(data_y, borrow=True):
+        shared_y = theano.shared(numpy.asarray(data_y,
+                                               dtype=theano.config.floatX),  # @UndefinedVariable
+                                 borrow=borrow)
+        return T.cast(shared_y, 'int64')  # for ARC-II on gpu
+        #return shared_y
+
+
+    #indices_train=shared_dataset(indices_train)
+    #indices_test=shared_dataset(indices_test)
+    train_set_Lengths=shared_dataset(trainLengths)
+    test_set_Lengths=shared_dataset(testLengths)
+    
+    normalized_train_length=theano.shared(numpy.asarray(normalized_trainLengths, dtype=theano.config.floatX),  borrow=True)                           
+    normalized_test_length = theano.shared(numpy.asarray(normalized_testLengths, dtype=theano.config.floatX),  borrow=True)       
+    
+    train_left_pad=shared_dataset(trainLeftPad)
+    train_right_pad=shared_dataset(trainRightPad)
+    test_left_pad=shared_dataset(testLeftPad)
+    test_right_pad=shared_dataset(testRightPad)
+                                
+    train_set_y=shared_dataset(trainY)                             
+    test_set_y = shared_dataset(testY)
+    
+
+    rval = [(indices_train,train_set_y, train_set_Lengths, normalized_train_length, train_left_pad, train_right_pad), (indices_test, test_set_y, test_set_Lengths, normalized_test_length, test_left_pad, test_right_pad)]
+    return rval, word_ind-1
 def load_ibm_corpus(vocabFile, trainFile, devFile, maxlength):
     #first load word vocab
     read_vocab=open(vocabFile, 'r')
@@ -145,7 +296,14 @@ def load_word2vec_to_init(rand_values, file):
     readFile.close()
     print 'initialization over...'
     return rand_values
-    
+def load_word2vec_to_init_new(rand_values, ivocab, word2vec):
+    for id, word in ivocab.iteritems():
+        emb=word2vec.get(word)
+        if emb is not None:
+            rand_values[id]=emb
+            
+    print '==> use word2vec initialization over...'
+    return rand_values    
 def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=60
     #first load word vocab
     read_vocab=open(vocabFile, 'r')
@@ -265,7 +423,7 @@ def load_msr_corpus(vocabFile, trainFile, testFile, maxlength): #maxSentLength=6
         shared_y = theano.shared(numpy.asarray(data_y,
                                                dtype=theano.config.floatX),  # @UndefinedVariable
                                  borrow=borrow)
-        return T.cast(shared_y, 'int64')
+        return T.cast(shared_y, 'int32')
         #return shared_y
 
 
@@ -304,8 +462,8 @@ def load_mts(train_file, test_file):
         test_values.append(tokens)
     read_test.close()
     
-    train_values=theano.shared(numpy.asarray(train_values, dtype=theano.config.floatX), borrow=True)
-    test_values=theano.shared(numpy.asarray(test_values, dtype=theano.config.floatX), borrow=True)
+#     train_values=theano.shared(numpy.asarray(train_values, dtype=theano.config.floatX), borrow=True)
+#     test_values=theano.shared(numpy.asarray(test_values, dtype=theano.config.floatX), borrow=True)
     
     return train_values, test_values
 
@@ -323,8 +481,8 @@ def load_mts_wikiQA(train_file, test_file):
         test_values.append(tokens)
     read_test.close()
     
-    train_values=theano.shared(numpy.asarray(train_values, dtype=theano.config.floatX), borrow=True)
-    test_values=theano.shared(numpy.asarray(test_values, dtype=theano.config.floatX), borrow=True)
+#     train_values=theano.shared(numpy.asarray(train_values, dtype=theano.config.floatX), borrow=True)
+#     test_values=theano.shared(numpy.asarray(test_values, dtype=theano.config.floatX), borrow=True)
     
     return train_values, test_values
 
@@ -360,8 +518,8 @@ def load_wmf_wikiQA(train_file, test_file):
         test_values.append(tokens)
     read_test.close()
     
-    train_values=theano.shared(numpy.asarray(train_values, dtype=theano.config.floatX), borrow=True)
-    test_values=theano.shared(numpy.asarray(test_values, dtype=theano.config.floatX), borrow=True)
+#     train_values=theano.shared(numpy.asarray(train_values, dtype=theano.config.floatX), borrow=True)
+#     test_values=theano.shared(numpy.asarray(test_values, dtype=theano.config.floatX), borrow=True)
     
     return train_values, test_values
 def load_wikiQA_corpus(vocabFile, trainFile, testFile, max_truncate,maxlength): #maxSentLength=45
@@ -493,7 +651,7 @@ def load_wikiQA_corpus(vocabFile, trainFile, testFile, max_truncate,maxlength): 
         shared_y = theano.shared(numpy.asarray(data_y,
                                                dtype=theano.config.floatX),  # @UndefinedVariable
                                  borrow=borrow)
-        return T.cast(shared_y, 'int32')  # for ARC-II on gpu
+        return T.cast(shared_y, 'int64')  # for ARC-II on gpu
         #return shared_y
 
 
@@ -818,6 +976,7 @@ def load_SICK_corpus(vocabFile, trainFile, testFile, max_truncate,maxlength, ent
 
     #indices_train=shared_dataset(indices_train)
     #indices_test=shared_dataset(indices_test)
+
     train_set_Lengths=shared_dataset(trainLengths)
     test_set_Lengths=shared_dataset(testLengths)
     
@@ -839,3 +998,165 @@ def load_SICK_corpus(vocabFile, trainFile, testFile, max_truncate,maxlength, ent
 
     rval = [(indices_train,train_set_y, train_set_Lengths, normalized_train_length, train_left_pad, train_right_pad), (indices_test, test_set_y, test_set_Lengths, normalized_test_length, test_left_pad, test_right_pad)]
     return rval, word_ind-1
+
+def tokenlist2idlist(tokenlist, word2id):
+    idlist=[]
+    for word in tokenlist:
+        id=word2id.get(word)
+        if id is None:
+            id=len(word2id)+1
+            word2id[word]=id
+        idlist.append(id)
+    return idlist
+def load_word2vec():
+    word2vec = {}
+
+    print "==> loading 50d glove"
+#     with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/glove/glove.6B." + str(dim) + "d.txt")) as f:
+    f=open('/mounts/data/proj/wenpeng/Dataset/word2vec_words_300d.txt', 'r') #glove.6B.50d.txt, glove.840B.300d.txt, word2vec_words_300d.txt
+    for line in f:
+        l = line.split()
+        word2vec[l[0]] = map(float, l[1:])
+
+    print "==> glove is loaded"
+
+    return word2vec
+def load_msr_corpus_20161229(trainFile, testFile, maxlength): #maxSentLength=60
+    #first load word vocab
+#     read_vocab=open(vocabFile, 'r')
+#     vocab={}
+#     word_ind=1
+#     for line in read_vocab:
+#         tokens=line.strip().split()
+#         vocab[tokens[1]]=word_ind #word2id
+#         word_ind+=1
+#     read_vocab.close()
+    word2id={}
+    #load train file
+    def load_train_file(file, word2id):   
+        read_file=open(file, 'r')
+        data=[]
+        Y=[]
+        Lengths=[]
+        leftPad=[]
+        rightPad=[]
+        for line in read_file:
+            tokens=line.strip().split('\t')  # label, sent1, sent2
+            Y.append(int(tokens[0])) #repeat
+            Y.append(int(tokens[0])) 
+            #question
+            for i in [1,2,2,1]: #shuffle the example
+                sent=[]
+                words=tokens[i].strip().lower().split()  
+                idlist=tokenlist2idlist(words, word2id)
+                length=len(idlist)
+                pad_size= maxlength - length
+                if pad_size <=0:
+                    length=maxlength
+                    idlist=idlist[:maxlength]
+                
+                Lengths.append(length)
+                left=maxlength-length
+                right=0
+                leftPad.append(left)
+                rightPad.append(right)
+                if left<0 or right<0:
+                    print 'Too long sentence:\n'+tokens[i]
+                    exit(0)   
+#                 print left, right
+#                 print [0]*left, idlist, [0]*right
+                sent=[0]*left+idlist#+[0]*right
+                data.append(sent)
+            #line_control+=1
+        read_file.close()
+        '''
+        #normalized length
+        arr=numpy.array(Lengths)
+        max=numpy.max(arr)
+        min=numpy.min(arr)
+        normalized_lengths=(arr-min)*1.0/(max-min)
+        '''
+
+        return data,Y, Lengths, leftPad,rightPad
+
+    def load_test_file(file, word2id):
+        read_file=open(file, 'r')
+        data=[]
+        Y=[]
+        Lengths=[]
+        leftPad=[]
+        rightPad=[]
+        for line in read_file:
+            tokens=line.strip().split('\t')
+            Y.append(int(tokens[0])) # make the label starts from 0 to 4
+            #Y.append(int(tokens[0]))
+            for i in [1,2]:
+                words=tokens[i].strip().lower().split()  
+                idlist=tokenlist2idlist(words, word2id)
+                length=len(idlist)
+                pad_size= maxlength - length
+                if pad_size <=0:
+                    length=maxlength
+                    idlist=idlist[:maxlength]
+                    
+                Lengths.append(length)
+                left=maxlength-length
+                right=0
+                leftPad.append(left)
+                rightPad.append(right)
+                if left<0 or right<0:
+                    print 'Too long sentence:\n'+tokens[i]
+                    exit(0)   
+                sent=[0]*left+idlist#+[0]*right
+                data.append(sent)
+        read_file.close()
+        '''
+        #normalized lengths
+        arr=numpy.array(Lengths)
+        max=numpy.max(arr)
+        min=numpy.min(arr)
+        normalized_lengths=(arr-min)*1.0/(max-min)
+        '''
+
+        return data,Y, Lengths, leftPad,rightPad
+
+    indices_train, trainY, trainLengths, trainLeftPad, trainRightPad=load_train_file(trainFile, word2id)
+    print 'train file loaded over, total pairs: ', len(trainLengths)/2
+    indices_test, testY, testLengths, testLeftPad, testRightPad=load_test_file(testFile, word2id)
+    print 'test file loaded over, total pairs: ', len(testLengths)/2
+    
+    #now, we need normaliza sentence length in the whole dataset (training and test)
+    concate_matrix=numpy.concatenate((trainLengths, testLengths), axis=0)
+    max=numpy.max(concate_matrix)
+    min=numpy.min(concate_matrix)    
+    normalized_trainLengths=(trainLengths-min)*1.0/(max-min)
+    normalized_testLengths=(testLengths-min)*1.0/(max-min)
+
+    
+#     def shared_dataset(data_y, borrow=True):
+#         shared_y = theano.shared(numpy.asarray(data_y,
+#                                                dtype=theano.config.floatX),  # @UndefinedVariable
+#                                  borrow=borrow)
+#         return T.cast(shared_y, 'int32')
+#         #return shared_y
+# 
+# 
+#     #indices_train=shared_dataset(indices_train)
+#     #indices_test=shared_dataset(indices_test)
+#     train_set_Lengths=shared_dataset(trainLengths)
+#     test_set_Lengths=shared_dataset(testLengths)
+#     
+#     normalized_train_length=theano.shared(numpy.asarray(normalized_trainLengths, dtype=theano.config.floatX),  borrow=True)                           
+#     normalized_test_length = theano.shared(numpy.asarray(normalized_testLengths, dtype=theano.config.floatX),  borrow=True)       
+#     
+#     train_left_pad=shared_dataset(trainLeftPad)
+#     train_right_pad=shared_dataset(trainRightPad)
+#     test_left_pad=shared_dataset(testLeftPad)
+#     test_right_pad=shared_dataset(testRightPad)
+#                                 
+#     train_set_y=shared_dataset(trainY)                             
+#     test_set_y = shared_dataset(testY)
+    
+
+    rval = [(indices_train,trainY, trainLengths, normalized_trainLengths, trainLeftPad, trainRightPad), (indices_test,testY, testLengths, normalized_testLengths, testLeftPad, testRightPad)]
+    return rval, word2id
