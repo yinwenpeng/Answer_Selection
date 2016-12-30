@@ -39,7 +39,7 @@ from scipy import linalg, mat, dot
 0) word matching features
 '''
 
-def evaluate_lenet5(learning_rate=0.01, n_epochs=2000, nkerns=[400], batch_size=1, window_width=3,
+def evaluate_lenet5(learning_rate=0.008, n_epochs=2000, nkerns=[400], batch_size=1, window_width=3,
                     maxSentLength=30, emb_size=300, hidden_size=[300,10],
                     margin=0.5, L2_weight=0.0001, Div_reg=0.0001, norm_threshold=5.0, use_svm=False):
 
